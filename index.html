@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>自由人家計簿</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js" crossorigin="anonymous"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #B2CEC8; }
+    body {
+      font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+    #root {
+      width: 100%;
+      max-width: 430px;
+      min-height: 100vh;
+      position: relative;
+    }
+    @media (min-width: 431px) {
+      #root {
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.1), 0 30px 80px rgba(0,0,0,0.3);
+      }
+    }
+    button { cursor: pointer; border: none; background: none; font-family: inherit; }
+    input { font-family: inherit; }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
+    input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 7px; border-radius: 4px; background: #E0F0EC; outline: none; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; border-radius: 50%; background: white; border: 2.5px solid #C8748E; box-shadow: 0 3px 10px rgba(200,116,142,0.3); cursor: pointer; }
+    input[type=range]::-moz-range-thumb { width: 30px; height: 30px; border-radius: 50%; background: white; border: 2.5px solid #C8748E; box-shadow: 0 3px 10px rgba(200,116,142,0.3); cursor: pointer; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useCallback } = React;
+
+// ── Design tokens ──────────────────────────────────────────────────────────
+const C = {
+  primary:     '#097D60',
+  primaryDark: '#054D3C',
+  primaryLight:'#D4E8E3',
+  bg:          '#EFF8F5',
+  bgCard:      '#E0F0EC',
+  border:      '#C0DED6',
+  warning:     '#C8748E',
+  warningBg:   '#FAE8F0',
+  info:        '#4A6898',
+  infoBg:      '#E6EDF8',
+  infoBorder:  '#A4B8D8',
+  invest:      '#6A5E9C',
+  text:        '#1A1917',
+  textMed:     '#5A5652',
+  textMuted:   '#9E9994',
+  textFaint:   '#C0BAB2',
+};
+
+const fmt = n => n.toLocaleString('ja-JP');
+
+// ── Shared components ──────────────────────────────────────────────────────
+function Card({ children, style = {} }) {
+  return (
+    <div style={{ background: 'white', borderRadius: 20, padding: 20, boxShadow: '0 2px 10px rgba(0,0,0,0.05)', ...style }}>
+      {children}
+    </div>
+  );
+}
+
+function PrimaryBtn({ children, onClick, style = {} }) {
+  return (
+    <button onClick={onClick} style={{
+      background: C.primary, color: 'white', borderRadius: 18,
+      padding: 18, textAlign: 'center', fontSize: 16, fontWeight: 700,
+      boxShadow: '0 8px 24px rgba(9,125,96,0.32)', width: '100%',
+      display: 'block', ...style
+    }}>
+      {children}
+    </button>
+  );
+}
+
+function Bar({ pct, color, bg = C.bgCard }) {
+  return (
+    <div style={{ background: bg, borderRadius: 4, height: 8, overflow: 'hidden' }}>
+      <div style={{ background: color, width: `${Math.min(100, pct)}%`, height: '100%', borderRadius: 4, transition: 'width 0.3s' }} />
+    </div>
+  );
+}
+
+// ── Bottom navigation ──────────────────────────────────────────────────────
+function BottomNav({ active, go }) {
+  const items = [
+    { key: 'home',     label: 'ホーム',
+      icon: a => <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M2 9.5L11 2L20 9.5V20C20 20.55 19.55 21 19 21H14V15.5H8V21H3C2.45 21 2 20.55 2 20V9.5Z" fill={a ? C.primary : 'none'} stroke={a ? 'none' : C.textFaint} strokeWidth="1.5"/></svg> },
+    { key: 'input',    label: '入力',
+      icon: a => <div style={{ width: 22, height: 22, borderRadius: '50%', border: `1.5px solid ${a ? C.primary : C.textFaint}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="10" height="10" viewBox="0 0 10 10"><path d="M5 1V9M1 5H9" stroke={a ? C.primary : C.textFaint} strokeWidth="1.5" strokeLinecap="round"/></svg></div> },
+    { key: 'budget',   label: '予算',
+      icon: a => <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="4" width="18" height="14" rx="3" fill={a ? C.primary : 'none'} stroke={a ? 'none' : C.textFaint} strokeWidth="1.5"/><path d="M7 9H15M7 13H11" stroke={a ? 'white' : C.textFaint} strokeWidth="1.5" strokeLinecap="round"/></svg> },
+    { key: 'report',   label: 'レポート',
+      icon: a => <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="12" width="4" height="8" rx="1.5" fill={a ? C.primary : C.textFaint}/><rect x="9" y="7" width="4" height="13" rx="1.5" fill={a ? C.primary : C.textFaint}/><rect x="16" y="3" width="4" height="17" rx="1.5" fill={a ? C.primary : C.textFaint}/></svg> },
+    { key: 'settings', label: '設定',
+      icon: a => <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="3" stroke={a ? C.primary : C.textFaint} strokeWidth="1.5"/><path d="M11 2V4M11 18V20M2 11H4M18 11H20M4.22 4.22L5.64 5.64M16.36 16.36L17.78 17.78M4.22 17.78L5.64 16.36M16.36 5.64L17.78 4.22" stroke={a ? C.primary : C.textFaint} strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  ];
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.97)', borderTop: `1px solid ${C.bgCard}`, display: 'flex', flexShrink: 0, paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
+      {items.map(({ key, label, icon }) => {
+        const a = active === key;
+        return (
+          <button key={key} onClick={() => go(key)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '10px 0 8px' }}>
+            {icon(a)}
+            <span style={{ fontSize: 10, fontWeight: a ? 700 : 500, color: a ? C.primary : C.textMuted }}>{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Screen wrapper (adds safe status bar space) ────────────────────────────
+function Screen({ children, bg = C.bg }) {
+  return (
+    <div style={{ height: '100vh', background: bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {children}
+    </div>
+  );
+}
+
+// ── 01 Login ───────────────────────────────────────────────────────────────
+function LoginScreen({ onNext }) {
+  return (
+    <Screen bg="linear-gradient(160deg, #EFF8F5 0%, #D4E8E3 55%, #D4E8E3 100%)">
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 40px' }}>
+        <div style={{ width: 84, height: 84, background: 'linear-gradient(145deg,#097D60,#054D3C)', borderRadius: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 28, boxShadow: '0 14px 36px rgba(31,29,56,0.38), 0 4px 12px rgba(31,29,56,0.2)' }}>
+          <svg width="46" height="46" viewBox="0 0 46 46" fill="none">
+            <path d="M23 5C14 5 8 12 8 20C8 29.5 13 37 23 42C33 37 38 29.5 38 20C38 12 32 5 23 5Z" fill="white" opacity="0.95"/>
+            <path d="M23 10V36" stroke="#1F1D38" strokeWidth="2.5" strokeLinecap="round"/>
+            <path d="M17 19L23 13L29 19" stroke="#1F1D38" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M17 25L23 31L29 25" stroke="#1F1D38" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.4"/>
+          </svg>
+        </div>
+        <div style={{ fontSize: 28, fontWeight: 700, color: C.text, letterSpacing: '-0.6px', marginBottom: 10, textAlign: 'center' }}>自由人家計簿</div>
+        <div style={{ fontSize: 15, color: C.textMed, textAlign: 'center', lineHeight: 1.75, marginBottom: 6 }}>お金の判断を、もっとシンプルに。</div>
+        <div style={{ fontSize: 12, color: C.textMuted, textAlign: 'center', lineHeight: 1.7 }}>フリーランス・個人事業主のための<br/>家計管理アプリ</div>
+      </div>
+
+      <div style={{ padding: '0 28px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <button onClick={onNext} style={{ background: 'white', border: `1.5px solid ${C.border}`, borderRadius: 20, padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', width: '100%', cursor: 'pointer' }}>
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <path d="M21.2 11.22c0-.74-.07-1.46-.19-2.14H11v4.05h5.72c-.25 1.36-1 2.52-2.14 3.3v2.73h3.46c2.02-1.86 3.16-4.62 3.16-7.94z" fill="#4285F4"/>
+            <path d="M11 22c2.86 0 5.26-.95 7.01-2.56l-3.46-2.73c-.96.64-2.18 1.02-3.55 1.02-2.72 0-5.04-1.84-5.87-4.32H1.54v2.8C3.28 19.57 6.94 22 11 22z" fill="#34A853"/>
+            <path d="M5.13 13.41A6.04 6.04 0 014.8 11c0-.84.15-1.65.43-2.41V5.79H1.54A10.98 10.98 0 000 11c0 1.78.42 3.46 1.54 4.8l3.59-2.39z" fill="#FBBC05"/>
+            <path d="M11 4.27c1.49 0 2.81.5 3.86 1.5l2.9-2.9C15.78.99 13.6 0 11 0 6.94 0 3.28 2.43 1.54 5.79l3.59 2.8c.83-2.47 3.15-4.32 5.87-4.32z" fill="#EA4335"/>
+          </svg>
+          <span style={{ fontSize: 15, fontWeight: 600, color: C.text, flex: 1, textAlign: 'left' }}>Googleでログイン</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke={C.textFaint} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+        <div style={{ textAlign: 'center', padding: 8 }}>
+          <button onClick={onNext} style={{ fontSize: 13, color: C.textMuted }}>アカウントなしでお試し →</button>
+        </div>
+      </div>
+      <div style={{ textAlign: 'center', padding: '0 28px 36px' }}>
+        <span style={{ fontSize: 11, color: C.textFaint }}>プライバシーポリシー　·　利用規約</span>
+      </div>
+    </Screen>
+  );
+}
+
+// ── 02 Onboarding 1/3 — Income type ───────────────────────────────────────
+function Onboarding1({ onNext }) {
+  const [sel, setSel] = useState(0);
+  const opts = [
+    { title: '案件ごとに変動する', desc: '月によって収入が大きく変わる' },
+    { title: '固定 + 変動の組み合わせ', desc: '基本報酬 + 追加案件がある' },
+    { title: 'ほぼ毎月同じくらい', desc: '収入が比較的安定している' },
+  ];
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 24px 24px' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 32 }}>
+          {[0,1,2].map(i => <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i === 0 ? C.primary : C.border }} />)}
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>STEP 1 / 3</div>
+        <div style={{ fontSize: 23, fontWeight: 700, color: C.text, lineHeight: 1.4, marginBottom: 10 }}>収入のスタイルを<br/>教えてください</div>
+        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 32, lineHeight: 1.7 }}>より正確な月末予測のために使います</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {opts.map((opt, i) => {
+            const active = sel === i;
+            return (
+              <button key={i} onClick={() => setSel(i)} style={{ background: 'white', border: `${active ? 2 : 1.5}px solid ${active ? C.primary : C.border}`, borderRadius: 20, padding: 20, display: 'flex', alignItems: 'center', gap: 16, boxShadow: active ? '0 4px 16px rgba(9,125,96,0.15)' : 'none', width: '100%', textAlign: 'left' }}>
+                <div style={{ width: 48, height: 48, background: active ? C.primaryLight : C.bg, borderRadius: 14, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 3 }}>{opt.title}</div>
+                  <div style={{ fontSize: 12, color: C.textMuted }}>{opt.desc}</div>
+                </div>
+                {active && (
+                  <div style={{ width: 24, height: 24, background: C.primary, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="12" height="10" viewBox="0 0 12 10" fill="none"><path d="M1 5L4.5 8.5L11 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{ padding: '16px 24px 32px', flexShrink: 0 }}><PrimaryBtn onClick={onNext}>次へ →</PrimaryBtn></div>
+    </Screen>
+  );
+}
+
+// ── 03 Onboarding 2/3 — Tax rate ──────────────────────────────────────────
+function Onboarding2({ onNext }) {
+  const [rate, setRate] = useState(20);
+  const income = 380000;
+  const tax = Math.round(income * rate / 100);
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 24px 24px' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 32 }}>
+          {[0,1,2].map(i => <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i <= 1 ? C.primary : C.border }} />)}
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>STEP 2 / 3</div>
+        <div style={{ fontSize: 23, fontWeight: 700, color: C.text, lineHeight: 1.4, marginBottom: 10 }}>税金の積み立て率を<br/>設定しましょう</div>
+        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 28, lineHeight: 1.7 }}>収入の何%を税金用に確保しますか？<br/>あとから変更できます。</div>
+
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ textAlign: 'center', marginBottom: 28 }}>
+            <div style={{ fontSize: 60, fontWeight: 700, color: C.warning, letterSpacing: '-3px', lineHeight: 1 }}>{rate}%</div>
+            <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>おすすめ：フリーランスは20〜30%</div>
+          </div>
+          <input type="range" min={10} max={40} value={rate} onChange={e => setRate(+e.target.value)}
+            style={{ width: '100%', marginBottom: 8 }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 11, color: C.textFaint }}>10%</span>
+            <span style={{ fontSize: 11, color: C.textFaint }}>25%</span>
+            <span style={{ fontSize: 11, color: C.textFaint }}>40%</span>
+          </div>
+        </Card>
+
+        <div style={{ background: C.warningBg, borderRadius: 18, padding: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.warning, marginBottom: 14 }}>月収 ¥{fmt(income)} の場合</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: C.warning, fontFeatureSettings: "'tnum'", letterSpacing: '-0.5px' }}>¥{fmt(tax)}</div>
+              <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>税金積立（{rate}%）</div>
+            </div>
+            <svg width="20" height="16" viewBox="0 0 20 16" fill="none"><path d="M1 8H18M13 3L18 8L13 13" stroke={C.border} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: C.primary, fontFeatureSettings: "'tnum'", letterSpacing: '-0.5px' }}>¥{fmt(income - tax)}</div>
+              <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>使えるお金</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: '16px 24px 32px', flexShrink: 0 }}><PrimaryBtn onClick={onNext}>次へ →</PrimaryBtn></div>
+    </Screen>
+  );
+}
+
+// ── 04 Onboarding 3/3 — Category selection ────────────────────────────────
+function Onboarding3({ onNext }) {
+  const lifeCats = ['食費', '交通費', '日用品', '美容・衣服', '外食', '娯楽', '医療'];
+  const bizCats  = ['材料費', '機材・ソフト', '外注費', '交通費（事業）', '広告宣伝', 'イベント出店'];
+  const [life, setLife] = useState(new Set(['食費', '交通費', '日用品', '外食']));
+  const [biz,  setBiz]  = useState(new Set(['材料費', '機材・ソフト', '交通費（事業）']));
+
+  const toggle = (set, setFn, cat) => {
+    const n = new Set(set);
+    n.has(cat) ? n.delete(cat) : n.add(cat);
+    setFn(n);
+  };
+
+  const Pill = ({ cat, sel, color, bg, border, onToggle }) => (
+    <button onClick={onToggle} style={{ background: sel ? color : bg, color: sel ? 'white' : color, borderRadius: 999, padding: '8px 16px', fontSize: 12, fontWeight: sel ? 600 : 500, border: `1px solid ${sel ? 'transparent' : border}` }}>
+      {cat}
+    </button>
+  );
+
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 24px 24px' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 32 }}>
+          {[0,1,2].map(i => <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: C.primary }} />)}
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>STEP 3 / 3</div>
+        <div style={{ fontSize: 23, fontWeight: 700, color: C.text, lineHeight: 1.4, marginBottom: 10 }}>カテゴリを選んで<br/>ください</div>
+        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 28 }}>あとから追加・変更できます</div>
+
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.info, letterSpacing: '0.06em', marginBottom: 10 }}>生活費カテゴリ</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
+          {lifeCats.map(c => <Pill key={c} cat={c} sel={life.has(c)} color={C.info} bg={C.infoBg} border={C.infoBorder} onToggle={() => toggle(life, setLife, c)} />)}
+        </div>
+
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.primary, letterSpacing: '0.06em', marginBottom: 10 }}>事業費カテゴリ</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {bizCats.map(c => <Pill key={c} cat={c} sel={biz.has(c)} color={C.primary} bg={C.primaryLight} border="#68B09A" onToggle={() => toggle(biz, setBiz, c)} />)}
+        </div>
+      </div>
+      <div style={{ padding: '16px 24px 32px', flexShrink: 0 }}><PrimaryBtn onClick={onNext}>はじめる</PrimaryBtn></div>
+    </Screen>
+  );
+}
+
+// ── 05 Home ────────────────────────────────────────────────────────────────
+function HomeScreen({ go }) {
+  const breakdown = [
+    { name: '生活費',  amt: 98000,  pct: 65, color: C.info,    note: '予算の65%',        noteColor: C.textMuted },
+    { name: '事業費',  amt: 43000,  pct: 86, color: C.primary, note: '予算の86% ⚠',     noteColor: C.warning  },
+    { name: '税金積立', amt: 45000, pct: 59, color: C.warning, note: '目標¥76,000の59%', noteColor: C.textMuted },
+    { name: '投資',    amt: 6000,   pct: 30, color: C.invest,  note: '',                  noteColor: C.textMuted },
+  ];
+
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', paddingTop: 52 }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 22px 12px' }}>
+          <div>
+            <div style={{ fontSize: 21, fontWeight: 700, color: C.text, letterSpacing: '-0.4px' }}>6月の家計</div>
+            <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>2026年6月 · 23日現在</div>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[
+              <path d="M9 3L4 7L9 11" stroke={C.textMed} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>,
+              <path d="M5 3L10 7L5 11" stroke={C.textMed} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>,
+            ].map((p, i) => (
+              <div key={i} style={{ width: 34, height: 34, background: 'white', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.08)', cursor: 'pointer' }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">{p}</svg>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Hero card */}
+        <div style={{ margin: '0 16px 14px', background: 'linear-gradient(135deg, #333149 0%, #1D1C2E 100%)', borderRadius: 22, padding: 24, position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', right: -28, top: -28, width: 120, height: 120, background: 'rgba(255,255,255,0.06)', borderRadius: '50%' }} />
+          <div style={{ position: 'absolute', right: 24, bottom: -20, width: 80, height: 80, background: 'rgba(255,255,255,0.04)', borderRadius: '50%' }} />
+          <div style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.72)', marginBottom: 4 }}>今日から使える</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
+            <span style={{ fontSize: 50, fontWeight: 700, color: 'white', letterSpacing: '-2.5px', fontFeatureSettings: "'tnum'", lineHeight: 1 }}>¥3,900</span>
+            <span style={{ fontSize: 17, color: 'rgba(255,255,255,0.72)', fontWeight: 500 }}>/日</span>
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 18 }}>月末まであと8日　·　残り予測 ¥82,000</div>
+          <div style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 4, height: 5, marginBottom: 6 }}>
+            <div style={{ background: 'rgba(255,255,255,0.85)', width: '77%', height: '100%', borderRadius: 4 }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>
+            <span>6/1</span><span>今日（23日）</span><span>6/30</span>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: 'flex', gap: 12, padding: '0 16px', marginBottom: 14 }}>
+          <Card style={{ flex: 1, padding: 18 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, marginBottom: 8 }}>確定収入</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: C.text, letterSpacing: '-1px', fontFeatureSettings: "'tnum'" }}>380,000</div>
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>円　+¥0見込み</div>
+          </Card>
+          <Card style={{ flex: 1, padding: 18 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.warning, marginBottom: 8 }}>月末残り予測</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: C.warning, letterSpacing: '-1px', fontFeatureSettings: "'tnum'" }}>82,000</div>
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>円　税・固定費除く</div>
+          </Card>
+        </div>
+
+        {/* Breakdown */}
+        <Card style={{ margin: '0 16px 14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>支出内訳</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.textMed, fontFeatureSettings: "'tnum'" }}>¥192,000</div>
+          </div>
+          {breakdown.map((item, i) => (
+            <div key={item.name} style={{ marginBottom: i < breakdown.length - 1 ? 14 : 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ width: 9, height: 9, borderRadius: 3, background: item.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, color: C.textMed, fontWeight: 500 }}>{item.name}</span>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFeatureSettings: "'tnum'" }}>¥{fmt(item.amt)}</span>
+              </div>
+              <Bar pct={item.pct} color={item.color} />
+              {item.note && <div style={{ textAlign: 'right', fontSize: 10, color: item.noteColor, marginTop: 3 }}>{item.note}</div>}
+            </div>
+          ))}
+        </Card>
+
+        {/* Alert */}
+        <div style={{ margin: '0 16px 20px', background: C.warningBg, borderRadius: 18, padding: 18, borderLeft: `3px solid ${C.warning}` }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.warning, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L13 12H1L7 1Z" stroke={C.warning} strokeWidth="1.4" fill="none" strokeLinejoin="round"/><path d="M7 5V8M7 10V10.5" stroke={C.warning} strokeWidth="1.4" strokeLinecap="round"/></svg>
+            今月のポイント
+          </div>
+          <div style={{ fontSize: 12, color: C.textMed, lineHeight: 1.85 }}>
+            今月は事業費が高めです。材料費とイベント出店料で予算の86%を使っています。<br/>
+            生活費は安全圏です。ただし服・美容費はあと¥7,000以内がおすすめです。
+          </div>
+        </div>
+      </div>
+
+      <BottomNav active="home" go={go} />
+    </Screen>
+  );
+}
+
+// ── 06 Expense Input ───────────────────────────────────────────────────────
+function ExpenseInput({ onBack, onDone }) {
+  const [amount, setAmount] = useState('3200');
+  const [date,   setDate]   = useState('今日');
+  const [cat,    setCat]    = useState('交通費');
+  const [div,    setDiv]    = useState('生活費');
+  const [pay,    setPay]    = useState('カード');
+  const [memo,   setMemo]   = useState('スーパーでの買い物');
+
+  const cats = ['食費','交通費','日用品','材料費','機材・ソフト','外食','美容・衣服','その他'];
+
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 20px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>支出を追加</div>
+          <button onClick={onBack} style={{ width: 32, height: 32, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2L12 12M12 2L2 12" stroke={C.textMed} strokeWidth="1.8" strokeLinecap="round"/></svg>
+          </button>
+        </div>
+
+        {/* Amount */}
+        <Card style={{ marginBottom: 16, textAlign: 'center', padding: 24 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, marginBottom: 10, letterSpacing: '0.04em' }}>金額</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+            <span style={{ fontSize: 36, fontWeight: 700, color: C.text }}>¥</span>
+            <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+              style={{ fontSize: 48, fontWeight: 700, color: C.text, letterSpacing: '-2px', fontFeatureSettings: "'tnum'", border: 'none', background: 'transparent', textAlign: 'center', width: '100%', outline: 'none', WebkitAppearance: 'none' }} />
+          </div>
+          <div style={{ width: '60%', height: 2, background: C.primary, borderRadius: 1, margin: '12px auto 0' }} />
+        </Card>
+
+        {/* Date */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          {['今日','昨日','日付選択'].map(d => (
+            <button key={d} onClick={() => setDate(d)} style={{ background: date === d ? C.primary : 'white', color: date === d ? 'white' : C.textMed, borderRadius: 999, padding: '10px 18px', fontSize: 13, fontWeight: date === d ? 600 : 500, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+              {d}
+            </button>
+          ))}
+        </div>
+
+        {/* Category */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 14 }}>カテゴリ</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+            {cats.map(c => {
+              const active = cat === c;
+              const isOther = c === 'その他';
+              return (
+                <button key={c} onClick={() => setCat(c)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 52, height: 52, background: isOther ? C.bg : (active ? C.primary : C.infoBg), borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: active ? '0 4px 12px rgba(9,125,96,0.3)' : 'none', border: isOther ? `1.5px dashed ${C.border}` : 'none' }}>
+                    <span style={{ fontSize: 18 }}>
+                      {c === '食費' && '🛒'}
+                      {c === '交通費' && '🚌'}
+                      {c === '日用品' && '🧴'}
+                      {c === '材料費' && '🎨'}
+                      {c === '機材・ソフト' && '💻'}
+                      {c === '外食' && '🍜'}
+                      {c === '美容・衣服' && '👗'}
+                      {c === 'その他' && <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2V14M2 8H14" stroke={C.textFaint} strokeWidth="1.8" strokeLinecap="round"/></svg>}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: active ? 600 : 500, color: active ? C.primary : C.textMed }}>{c}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+
+        {/* Division */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>区分</div>
+          <div style={{ display: 'flex', background: C.bg, borderRadius: 14, padding: 3, gap: 2 }}>
+            {['生活費','事業費','税金','投資'].map(d => (
+              <button key={d} onClick={() => setDiv(d)} style={{ flex: 1, background: div === d ? C.primary : 'transparent', color: div === d ? 'white' : C.textMuted, borderRadius: 12, padding: '10px 2px', textAlign: 'center', fontSize: 12, fontWeight: div === d ? 700 : 500, boxShadow: div === d ? '0 2px 8px rgba(9,125,96,0.3)' : 'none' }}>
+                {d}
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        {/* Payment + Memo */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>支払い方法</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+            {['カード','現金','PayPay','その他'].map(p => (
+              <button key={p} onClick={() => setPay(p)} style={{ background: C.bg, color: pay === p ? C.warning : C.textMuted, borderRadius: 10, padding: '9px 14px', fontSize: 12, fontWeight: 600, border: `${pay === p ? 1.5 : 1}px solid ${pay === p ? C.warning : C.border}` }}>
+                {p}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 8 }}>メモ</div>
+          <input value={memo} onChange={e => setMemo(e.target.value)} placeholder="メモを入力..."
+            style={{ background: C.bg, borderRadius: 12, padding: '13px 16px', fontSize: 14, color: C.text, border: 'none', width: '100%', outline: 'none' }} />
+        </Card>
+      </div>
+
+      <div style={{ padding: '12px 20px 24px', flexShrink: 0 }}>
+        <PrimaryBtn onClick={onDone}>追加する</PrimaryBtn>
+      </div>
+    </Screen>
+  );
+}
+
+// ── 07 Income Input ────────────────────────────────────────────────────────
+function IncomeInput({ onBack, onDone }) {
+  const [amount, setAmount] = useState('150000');
+  const [type,   setType]   = useState('確定収入');
+  const [source, setSource] = useState('株式会社○○デザイン');
+  const [date,   setDate]   = useState('今日');
+  const [memo,   setMemo]   = useState('6月分Webデザイン納品');
+
+  const n = parseInt(amount) || 0;
+  const tax = Math.round(n * 0.2);
+
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 20px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>収入を追加</div>
+          <button onClick={onBack} style={{ width: 32, height: 32, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2L12 12M12 2L2 12" stroke={C.textMed} strokeWidth="1.8" strokeLinecap="round"/></svg>
+          </button>
+        </div>
+
+        {/* Amount */}
+        <Card style={{ marginBottom: 16, textAlign: 'center', padding: 24 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, marginBottom: 10 }}>金額</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+            <span style={{ fontSize: 36, fontWeight: 700, color: C.primary }}>¥</span>
+            <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+              style={{ fontSize: 48, fontWeight: 700, color: C.primary, letterSpacing: '-2px', fontFeatureSettings: "'tnum'", border: 'none', background: 'transparent', textAlign: 'center', width: '100%', outline: 'none', WebkitAppearance: 'none' }} />
+          </div>
+          <div style={{ width: '60%', height: 2, background: C.primary, borderRadius: 1, margin: '12px auto 0' }} />
+        </Card>
+
+        {/* Income type toggle */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>収入タイプ</div>
+          <div style={{ display: 'flex', background: C.primaryLight, borderRadius: 14, padding: 3, gap: 2 }}>
+            {['確定収入','見込み収入'].map(t => (
+              <button key={t} onClick={() => setType(t)} style={{ flex: 1, background: type === t ? C.primary : 'transparent', color: type === t ? 'white' : C.textMuted, borderRadius: 12, padding: 12, textAlign: 'center', fontSize: 13, fontWeight: type === t ? 700 : 500, boxShadow: type === t ? '0 3px 10px rgba(9,125,96,0.3)' : 'none' }}>
+                {t}
+              </button>
+            ))}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 11, color: C.textMuted, lineHeight: 1.6 }}>
+            確定収入：請求済み・入金済みの収入<br/>見込み収入：進行中の案件や予定収入
+          </div>
+        </Card>
+
+        {/* Source + Date */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>収入源</div>
+          <input value={source} onChange={e => setSource(e.target.value)} placeholder="収入源を入力..."
+            style={{ background: C.bg, borderRadius: 12, padding: '13px 16px', fontSize: 14, color: C.text, border: 'none', width: '100%', outline: 'none', marginBottom: 16 }} />
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>入金日</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {['今日','昨日','日付'].map(d => (
+              <button key={d} onClick={() => setDate(d)} style={{ background: date === d ? C.primary : C.bg, color: date === d ? 'white' : C.textMed, borderRadius: 999, padding: '10px 20px', fontSize: 13, fontWeight: date === d ? 600 : 500 }}>
+                {d}
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        {/* Tax auto-calc */}
+        {n > 0 && (
+          <div style={{ background: C.warningBg, borderRadius: 18, padding: 18, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.warning, marginBottom: 10 }}>自動計算</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 12, color: C.textMed }}>税金積立（20%）</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: C.warning, fontFeatureSettings: "'tnum'" }}>¥{fmt(tax)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: C.textMed }}>残り手取り</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: C.primary, fontFeatureSettings: "'tnum'" }}>¥{fmt(n - tax)}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Memo */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 8 }}>メモ</div>
+          <input value={memo} onChange={e => setMemo(e.target.value)} placeholder="メモを入力..."
+            style={{ background: C.bg, borderRadius: 12, padding: '13px 16px', fontSize: 14, color: C.textMuted, border: 'none', width: '100%', outline: 'none' }} />
+        </Card>
+      </div>
+
+      <div style={{ padding: '12px 20px 24px', flexShrink: 0 }}>
+        <PrimaryBtn onClick={onDone}>追加する</PrimaryBtn>
+      </div>
+    </Screen>
+  );
+}
+
+// ── 08 Input selector modal ────────────────────────────────────────────────
+function InputSelector({ go }) {
+  return (
+    <Screen>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '56px 20px 20px' }}>
+        <div style={{ fontSize: 21, fontWeight: 700, color: C.text, marginBottom: 4 }}>記録を追加</div>
+        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 32 }}>何を追加しますか？</div>
+
+        <button onClick={() => go('expense-input')} style={{ background: 'white', borderRadius: 20, padding: 24, display: 'flex', alignItems: 'center', gap: 18, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: 16, textAlign: 'left', width: '100%' }}>
+          <div style={{ width: 56, height: 56, background: C.infoBg, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 26 }}>💸</div>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 4 }}>支出を追加</div>
+            <div style={{ fontSize: 13, color: C.textMuted }}>食費・交通費・材料費など</div>
+          </div>
+          <svg style={{ marginLeft: 'auto', flexShrink: 0 }} width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1l6 6-6 6" stroke={C.textFaint} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+
+        <button onClick={() => go('income-input')} style={{ background: 'white', borderRadius: 20, padding: 24, display: 'flex', alignItems: 'center', gap: 18, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: 32, textAlign: 'left', width: '100%' }}>
+          <div style={{ width: 56, height: 56, background: '#D4F0E8', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 26 }}>💰</div>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 4 }}>収入を追加</div>
+            <div style={{ fontSize: 13, color: C.textMuted }}>売上・案件報酬・確定収入など</div>
+          </div>
+          <svg style={{ marginLeft: 'auto', flexShrink: 0 }} width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1l6 6-6 6" stroke={C.textFaint} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+
+        <div style={{ marginTop: 'auto' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, letterSpacing: '0.04em', marginBottom: 12 }}>最近の記録</div>
+          {[
+            { icon: '🛒', name: 'スーパーでの買い物', cat: '食費', div: '生活費', amt: '-¥3,200', color: C.text, date: '今日' },
+            { icon: '🚌', name: '電車・バス', cat: '交通費', div: '事業費', amt: '-¥540', color: C.text, date: '昨日' },
+            { icon: '💰', name: '株式会社○○デザイン', cat: '売上', div: '確定収入', amt: '+¥150,000', color: C.primary, date: '6/20' },
+          ].map(r => (
+            <div key={r.name} style={{ background: 'white', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
+              <span style={{ fontSize: 20 }}>{r.icon}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{r.name}</div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{r.cat} · {r.div} · {r.date}</div>
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: r.color, fontFeatureSettings: "'tnum'" }}>{r.amt}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <BottomNav active="input" go={go} />
+    </Screen>
+  );
+}
+
+// ── 09 Tax & Savings ───────────────────────────────────────────────────────
+function TaxScreen({ go }) {
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 20px 20px' }}>
+        {/* Sub-tab */}
+        <div style={{ display: 'flex', background: C.primaryLight, borderRadius: 14, padding: 3, gap: 2, marginBottom: 20 }}>
+          <button onClick={() => go('budget')} style={{ flex: 1, color: C.textMuted, padding: '10px', textAlign: 'center', fontSize: 13, fontWeight: 500, borderRadius: 12 }}>予算</button>
+          <button style={{ flex: 1, background: C.primary, color: 'white', padding: '10px', textAlign: 'center', fontSize: 13, fontWeight: 700, borderRadius: 12, boxShadow: '0 3px 10px rgba(9,125,96,0.3)' }}>税金・積立</button>
+        </div>
+
+        <div style={{ fontSize: 21, fontWeight: 700, color: C.text, marginBottom: 4 }}>税金・積立</div>
+        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 24 }}>2026年6月 — 目標達成まで頑張ろう</div>
+
+        {/* Progress card */}
+        <Card style={{ marginBottom: 16, padding: '28px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+            <div style={{ flexShrink: 0, position: 'relative', width: 128, height: 128 }}>
+              <svg width="128" height="128" viewBox="0 0 128 128" style={{ position: 'absolute', top: 0, left: 0 }}>
+                <circle cx="64" cy="64" r="52" fill="none" stroke={C.bgCard} strokeWidth="11"/>
+                <circle cx="64" cy="64" r="52" fill="none" stroke={C.warning} strokeWidth="11" strokeDasharray="327" strokeDashoffset="134" strokeLinecap="round" transform="rotate(-90 64 64)"/>
+              </svg>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: C.warning, lineHeight: 1, fontFeatureSettings: "'tnum'" }}>59%</div>
+                <div style={{ fontSize: 10, color: C.textMuted, marginTop: 4 }}>達成</div>
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>積み立て済み</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: C.warning, letterSpacing: '-1px', fontFeatureSettings: "'tnum'", lineHeight: 1.1 }}>¥45,000</div>
+              <div style={{ height: 1, background: C.bgCard, margin: '12px 0' }} />
+              <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 4 }}>今月の目標</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: C.text, fontFeatureSettings: "'tnum'" }}>¥76,000</div>
+              <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>収入の20%</div>
+            </div>
+          </div>
+          <div style={{ marginTop: 20, background: C.warningBg, borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 2L16 14H2L9 2Z" stroke={C.warning} strokeWidth="1.4" fill="none" strokeLinejoin="round"/><path d="M9 7V10M9 12V12.5" stroke={C.warning} strokeWidth="1.4" strokeLinecap="round"/></svg>
+            <div style={{ fontSize: 12, color: C.warning, lineHeight: 1.6 }}>あと <strong style={{ fontSize: 15, fontFeatureSettings: "'tnum'" }}>¥31,000</strong> 積み立てが必要です。月末まであと8日。</div>
+          </div>
+        </Card>
+
+        {/* History */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 16 }}>月別積立状況</div>
+          {[
+            { m: '6月', pct: 59, amt: '¥45,000', color: C.warning },
+            { m: '5月', pct: 100, amt: '¥72,000', color: C.primary },
+            { m: '4月', pct: 100, amt: '¥84,000', color: C.primary },
+            { m: '3月', pct: 72,  amt: '¥52,000', color: C.warning },
+          ].map(row => (
+            <div key={row.m} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: C.textMuted, width: 28, flexShrink: 0 }}>{row.m}</div>
+              <div style={{ flex: 1, background: C.bgCard, borderRadius: 4, height: 8, overflow: 'hidden' }}>
+                <div style={{ background: row.color, width: `${row.pct}%`, height: '100%', borderRadius: 4 }} />
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: row.color, width: 60, textAlign: 'right', fontFeatureSettings: "'tnum'" }}>{row.amt}</div>
+            </div>
+          ))}
+        </Card>
+
+        {/* Tips */}
+        <div style={{ background: C.primaryLight, borderRadius: 18, padding: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.primary, marginBottom: 8 }}>フリーランスの税金ガイド</div>
+          <div style={{ fontSize: 12, color: C.textMed, lineHeight: 1.8 }}>年間所得400万円の場合、所得税+住民税の目安は約25〜30%です。消費税の納付義務がある場合はさらに10%の積み立てが必要です。</div>
+        </div>
+      </div>
+
+      <BottomNav active="budget" go={go} />
+    </Screen>
+  );
+}
+
+// ── 10 Budget ──────────────────────────────────────────────────────────────
+function BudgetScreen({ go }) {
+  const cats = [
+    { name: '生活費',  used: 98000,  budget: 150000, pct: 65, color: C.info,    note: '65% — 安全',        noteColor: C.textMuted, warn: false },
+    { name: '事業費',  used: 43000,  budget: 50000,  pct: 86, color: C.primary, note: '86% — 注意',        noteColor: C.warning,  warn: true  },
+    { name: '税金積立', used: 45000, budget: 76000,  pct: 59, color: C.warning, note: '59% — 積み立て継続中', noteColor: C.textMuted, warn: false },
+    { name: '投資・貯金', used: 0,   budget: 30000,  pct: 0,  color: C.invest,  note: '未設定',             noteColor: C.textMuted, warn: false },
+  ];
+
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 20px 20px' }}>
+        {/* Sub-tab */}
+        <div style={{ display: 'flex', background: C.primaryLight, borderRadius: 14, padding: 3, gap: 2, marginBottom: 20 }}>
+          <button style={{ flex: 1, background: C.primary, color: 'white', padding: '10px', textAlign: 'center', fontSize: 13, fontWeight: 700, borderRadius: 12, boxShadow: '0 3px 10px rgba(9,125,96,0.3)' }}>予算</button>
+          <button onClick={() => go('tax')} style={{ flex: 1, color: C.textMuted, padding: '10px', textAlign: 'center', fontSize: 13, fontWeight: 500, borderRadius: 12 }}>税金・積立</button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ fontSize: 21, fontWeight: 700, color: C.text }}>予算管理</div>
+          <div style={{ fontSize: 13, fontWeight: 500, color: C.primary }}>6月</div>
+        </div>
+        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 20 }}>総予算 ¥215,000 · 使用済み ¥186,000</div>
+
+        {/* Overall */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>全体予算</div>
+            <div style={{ fontSize: 12, color: C.textMuted, fontFeatureSettings: "'tnum'" }}>¥186,000 / ¥215,000</div>
+          </div>
+          <div style={{ background: C.bgCard, borderRadius: 6, height: 10, marginBottom: 6, overflow: 'hidden' }}>
+            <div style={{ background: `linear-gradient(90deg, ${C.info} 40%, ${C.primary} 40% 75%, ${C.warning} 75% 90%, ${C.invest} 90%)`, width: '87%', height: '100%', borderRadius: 6 }} />
+          </div>
+          <div style={{ fontSize: 11, color: C.textMuted }}>予算の87%を使用中</div>
+        </Card>
+
+        {/* Categories */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 18 }}>カテゴリ別</div>
+          {cats.map((item, i) => (
+            <div key={item.name} style={{ marginBottom: i < cats.length - 1 ? 18 : 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 3, background: item.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{item.name}</span>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: item.warn ? C.warning : C.text, fontFeatureSettings: "'tnum'" }}>¥{fmt(item.used)}</span>
+                  <span style={{ fontSize: 11, color: C.textMuted, marginLeft: 4 }}>/ ¥{fmt(item.budget)}</span>
+                </div>
+              </div>
+              <Bar pct={item.pct} color={item.color} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 3 }}>
+                {item.warn && <svg width="11" height="10" viewBox="0 0 11 10" fill="none"><path d="M5.5 1L10 9H1L5.5 1Z" stroke={C.warning} strokeWidth="1.2" fill="none"/><path d="M5.5 4V6.5M5.5 7.5V8" stroke={C.warning} strokeWidth="1.2" strokeLinecap="round"/></svg>}
+                <span style={{ fontSize: 10, color: item.noteColor }}>{item.note}</span>
+              </div>
+            </div>
+          ))}
+        </Card>
+
+        {/* Add category */}
+        <div style={{ background: 'white', borderRadius: 18, padding: 16, display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.05)', cursor: 'pointer' }}>
+          <div style={{ width: 40, height: 40, background: C.primaryLight, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2V14M2 8H14" stroke={C.primary} strokeWidth="1.8" strokeLinecap="round"/></svg>
+          </div>
+          <span style={{ fontSize: 14, fontWeight: 500, color: C.primary }}>予算カテゴリを追加</span>
+        </div>
+      </div>
+
+      <BottomNav active="budget" go={go} />
+    </Screen>
+  );
+}
+
+// ── 11 Monthly Report ──────────────────────────────────────────────────────
+function ReportScreen({ go }) {
+  const months = [
+    { label: '1月', inc: 63, exp: 42 },
+    { label: '2月', inc: 81, exp: 52 },
+    { label: '3月', inc: 66, exp: 43 },
+    { label: '4月', inc: 100, exp: 57 },
+    { label: '5月', inc: 86, exp: 50 },
+    { label: '6月', inc: 90, exp: 46, current: true },
+  ];
+
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 20px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div style={{ fontSize: 21, fontWeight: 700, color: C.text }}>月次レポート</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 30, height: 30, background: 'white', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.07)', cursor: 'pointer' }}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L3 6L8 10" stroke={C.textMed} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>6月</span>
+            <div style={{ width: 30, height: 30, background: 'white', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.07)', cursor: 'pointer' }}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2L9 6L4 10" stroke={C.textFaint} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+          {[
+            { label: '収入', value: '380,000', color: C.primary, sub: '円' },
+            { label: '支出', value: '192,000', color: C.text,    sub: '円' },
+            { label: '貯蓄率', value: '49.5%', color: C.invest,  sub: '税引き前' },
+          ].map(s => (
+            <Card key={s.label} style={{ flex: 1, padding: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: C.textMuted, marginBottom: 6 }}>{s.label}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: s.color, letterSpacing: '-0.8px', fontFeatureSettings: "'tnum'" }}>{s.value}</div>
+              <div style={{ fontSize: 10, color: C.textMuted, marginTop: 2 }}>{s.sub}</div>
+            </Card>
+          ))}
+        </div>
+
+        {/* Bar chart */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>6ヶ月の収支推移</div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 3, background: C.primary }} /><span style={{ fontSize: 11, color: C.textMuted }}>収入</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 3, background: C.info }} /><span style={{ fontSize: 11, color: C.textMuted }}>支出</span></div>
+          </div>
+          <svg viewBox="0 0 348 140" style={{ width: '100%', overflow: 'visible' }}>
+            <line x1="0" y1="10" x2="348" y2="10" stroke={C.bgCard} strokeWidth="1"/>
+            <line x1="0" y1="43" x2="348" y2="43" stroke={C.bgCard} strokeWidth="1"/>
+            <line x1="0" y1="77" x2="348" y2="77" stroke={C.bgCard} strokeWidth="1"/>
+            <line x1="0" y1="110" x2="348" y2="110" stroke={C.border} strokeWidth="1.2"/>
+            {months.map((d, i) => (
+              <g key={d.label}>
+                <rect x={i*58+6}  y={110-d.inc} width="20" height={d.inc} rx="4" fill={C.primary} opacity={d.current ? 1 : 0.7}/>
+                <rect x={i*58+29} y={110-d.exp} width="20" height={d.exp} rx="4" fill={C.info}    opacity={d.current ? 1 : 0.7}/>
+                <text x={i*58+24} y="128" textAnchor="middle" fontSize="10" fill={d.current ? C.text : C.textFaint} fontWeight={d.current ? '700' : '400'} fontFamily="sans-serif">{d.label}</text>
+              </g>
+            ))}
+          </svg>
+        </Card>
+
+        {/* Category ranking */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 16 }}>支出カテゴリTop4</div>
+          {[
+            { rank: 1, name: '食費',         amt: '¥42,000', color: C.info,    warn: false },
+            { rank: 2, name: 'イベント出店', amt: '¥28,000', color: C.primary, warn: true  },
+            { rank: 3, name: '交通費',        amt: '¥22,000', color: C.info,    warn: false },
+            { rank: 4, name: '材料費',        amt: '¥15,000', color: C.primary, warn: false },
+          ].map(r => (
+            <div key={r.rank} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.textMuted, width: 18 }}>{r.rank}</div>
+              <div style={{ width: 9, height: 9, borderRadius: 3, background: r.color, flexShrink: 0 }} />
+              <div style={{ flex: 1, fontSize: 13, color: C.text, fontWeight: 500 }}>{r.name}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: r.warn ? C.warning : C.text, fontFeatureSettings: "'tnum'" }}>{r.amt}</div>
+            </div>
+          ))}
+        </Card>
+
+        {/* MoM */}
+        <Card>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 16 }}>前月比較</div>
+          {[
+            { label: '収入',    prev: '5月 ¥360,000', diff: '+¥20,000 ↑', positive: true  },
+            { label: '支出',    prev: '5月 ¥205,000', diff: '-¥13,000 ↓', positive: true  },
+            { label: '税金積立', prev: '5月 ¥72,000',  diff: '-¥27,000 ↓', positive: false },
+          ].map((r, i) => (
+            <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: i < 2 ? 10 : 0, borderBottom: i < 2 ? `1px solid ${C.bgCard}` : 'none', marginBottom: i < 2 ? 10 : 0 }}>
+              <span style={{ fontSize: 13, color: C.textMed }}>{r.label}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: C.textMuted, fontFeatureSettings: "'tnum'" }}>{r.prev}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: r.positive ? C.primary : C.warning, fontFeatureSettings: "'tnum'" }}>{r.diff}</span>
+              </div>
+            </div>
+          ))}
+        </Card>
+      </div>
+
+      <BottomNav active="report" go={go} />
+    </Screen>
+  );
+}
+
+// ── 12 Settings ────────────────────────────────────────────────────────────
+function SettingsScreen({ go }) {
+  const rows = [
+    { label: 'プロフィール',   detail: 'アカウント設定',  emoji: '👤' },
+    { label: '税率の設定',     detail: '現在 20%',        emoji: '📊' },
+    { label: '固定費の管理',   detail: '5件登録済み',     emoji: '📋' },
+    { label: 'カテゴリの編集', detail: 'カスタマイズ',    emoji: '🏷' },
+    { label: '通知設定',       detail: 'オン',            emoji: '🔔' },
+    { label: 'データのバックアップ', detail: 'Google Drive', emoji: '☁️' },
+  ];
+
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 20px 20px' }}>
+        <div style={{ fontSize: 21, fontWeight: 700, color: C.text, marginBottom: 24 }}>設定</div>
+
+        {/* Profile card */}
+        <Card style={{ marginBottom: 24, padding: '20px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ width: 56, height: 56, background: C.primaryLight, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>🙂</div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>ゲストユーザー</div>
+              <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Googleアカウントでログインするとデータが保存されます</div>
+            </div>
+          </div>
+          <button style={{ marginTop: 14, width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', fontSize: 13, fontWeight: 600, color: C.primary }}>
+            Googleでログイン
+          </button>
+        </Card>
+
+        {rows.map((row, i) => (
+          <div key={row.label} style={{ background: 'white', borderRadius: 16, padding: '16px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 1px 6px rgba(0,0,0,0.04)', cursor: 'pointer' }}>
+            <span style={{ fontSize: 18, width: 28, textAlign: 'center' }}>{row.emoji}</span>
+            <div style={{ flex: 1, fontSize: 14, fontWeight: 500, color: C.text }}>{row.label}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 13, color: C.textMuted }}>{row.detail}</div>
+              <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1l6 6-6 6" stroke={C.textFaint} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+          </div>
+        ))}
+
+        <div style={{ marginTop: 24, textAlign: 'center' }}>
+          <span style={{ fontSize: 11, color: C.textFaint }}>自由人家計簿 v1.0.0　·　プライバシーポリシー</span>
+        </div>
+      </div>
+
+      <BottomNav active="settings" go={go} />
+    </Screen>
+  );
+}
+
+// ── App (router) ───────────────────────────────────────────────────────────
+function App() {
+  const [screen, setScreen] = useState('login');
+  const [prev,   setPrev]   = useState('home');
+
+  const go = useCallback((s) => {
+    setPrev(screen);
+    setScreen(s);
+  }, [screen]);
+
+  const nav = useCallback((key) => {
+    const map = { home: 'home', input: 'input', budget: 'budget', report: 'report', settings: 'settings' };
+    go(map[key] || key);
+  }, [go]);
+
+  const render = () => {
+    switch (screen) {
+      case 'login':         return <LoginScreen    onNext={() => go('onboarding1')} />;
+      case 'onboarding1':   return <Onboarding1    onNext={() => go('onboarding2')} />;
+      case 'onboarding2':   return <Onboarding2    onNext={() => go('onboarding3')} />;
+      case 'onboarding3':   return <Onboarding3    onNext={() => go('home')} />;
+      case 'home':          return <HomeScreen      go={nav} />;
+      case 'input':         return <InputSelector   go={nav} />;
+      case 'expense-input': return <ExpenseInput    onBack={() => go(prev)} onDone={() => go('home')} />;
+      case 'income-input':  return <IncomeInput     onBack={() => go(prev)} onDone={() => go('home')} />;
+      case 'tax':           return <TaxScreen       go={nav} />;
+      case 'budget':        return <BudgetScreen    go={nav} />;
+      case 'report':        return <ReportScreen    go={nav} />;
+      case 'settings':      return <SettingsScreen  go={nav} />;
+      default:              return <HomeScreen      go={nav} />;
+    }
+  };
+
+  return <div style={{ minHeight: '100vh', background: C.bg }}>{render()}</div>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
