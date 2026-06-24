@@ -248,7 +248,8 @@ function MonthPill() {
 // ── Business (事業管理) ──────────────────────────────────────────────────────
 function BusinessScreen({ go }) {
   const [tab, setTab] = useState('pl');
-  const allTxns = Store.get('transactions', []);
+  const [allTxns, setAllTxns] = useState(() => Store.get('transactions', []));
+  const deleteTxn = id => { const next = allTxns.filter(t=>t.id!==id); setAllTxns(next); Store.set('transactions', next); };
   const today = new Date();
   const currYm = TODAY.slice(0,7);
   const [selYm, setSelYm] = useState(currYm);
@@ -421,6 +422,7 @@ function BusinessScreen({ go }) {
                         <div style={{ fontSize:11, color:C.textMuted }}>{t.date}{t.payment?` · ${t.payment}`:''}</div>
                       </div>
                       <div style={{ fontSize:16, fontWeight:700, color:C.primary, fontFeatureSettings:tnum, flexShrink:0 }}>+¥{fmt(t.amount)}</div>
+                      <button onClick={()=>deleteTxn(t.id)} style={{ width:28, height:28, borderRadius:8, background:'#FEE2E2', color:'#DC2626', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, border:'none', cursor:'pointer' }}>×</button>
                     </div>
                   ))}
                 </div>
@@ -446,6 +448,7 @@ function BusinessScreen({ go }) {
                         <div style={{ fontSize:11, color:C.textMuted }}>{t.date} · {t.category}{t.payment?` · ${t.payment}`:''}</div>
                       </div>
                       <div style={{ fontSize:16, fontWeight:700, color:C.text, fontFeatureSettings:tnum, flexShrink:0 }}>¥{fmt(t.amount)}</div>
+                      <button onClick={()=>deleteTxn(t.id)} style={{ width:28, height:28, borderRadius:8, background:'#FEE2E2', color:'#DC2626', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, border:'none', cursor:'pointer' }}>×</button>
                     </div>
                   ))}
                   <div style={{ marginTop:8, padding:'14px 16px', background:C.border, borderRadius:12, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
