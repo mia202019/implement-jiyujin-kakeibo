@@ -9,6 +9,7 @@
   <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js" crossorigin="anonymous"></script>
+  <script src="https://accounts.google.com/gsi/client" async></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; background: #B2CEC8; }
@@ -43,7 +44,9 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useCallback } = React;
+const { useState, useCallback, useEffect } = React;
+const CLIENT_ID = '954710101476-7n1fbuoi07tqf0ohs1ujprgrchu0jvl2.apps.googleusercontent.com';
+function parseJwt(t) { return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); }
 
 // ── Design tokens ──────────────────────────────────────────────────────────
 const C = {
@@ -136,7 +139,24 @@ function Screen({ children, bg = C.bg }) {
 }
 
 // ── 01 Login ───────────────────────────────────────────────────────────────
-function LoginScreen({ onNext }) {
+function LoginScreen({ onLogin, onSkip }) {
+  useEffect(() => {
+    const init = () => {
+      if (!window.google) { setTimeout(init, 200); return; }
+      google.accounts.id.initialize({
+        client_id: CLIENT_ID,
+        callback: ({ credential }) => {
+          const p = parseJwt(credential);
+          onLogin({ name: p.name, email: p.email, picture: p.picture });
+        }
+      });
+      google.accounts.id.renderButton(document.getElementById('g-btn-mobile'), {
+        theme: 'outline', size: 'large', width: 300, locale: 'ja'
+      });
+    };
+    init();
+  }, []);
+
   return (
     <Screen bg="linear-gradient(160deg, #EFF8F5 0%, #D4E8E3 55%, #D4E8E3 100%)">
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 40px' }}>
@@ -153,20 +173,9 @@ function LoginScreen({ onNext }) {
         <div style={{ fontSize: 12, color: C.textMuted, textAlign: 'center', lineHeight: 1.7 }}>フリーランス・個人事業主のための<br/>家計管理アプリ</div>
       </div>
 
-      <div style={{ padding: '0 28px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <button onClick={onNext} style={{ background: 'white', border: `1.5px solid ${C.border}`, borderRadius: 20, padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', width: '100%', cursor: 'pointer' }}>
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-            <path d="M21.2 11.22c0-.74-.07-1.46-.19-2.14H11v4.05h5.72c-.25 1.36-1 2.52-2.14 3.3v2.73h3.46c2.02-1.86 3.16-4.62 3.16-7.94z" fill="#4285F4"/>
-            <path d="M11 22c2.86 0 5.26-.95 7.01-2.56l-3.46-2.73c-.96.64-2.18 1.02-3.55 1.02-2.72 0-5.04-1.84-5.87-4.32H1.54v2.8C3.28 19.57 6.94 22 11 22z" fill="#34A853"/>
-            <path d="M5.13 13.41A6.04 6.04 0 014.8 11c0-.84.15-1.65.43-2.41V5.79H1.54A10.98 10.98 0 000 11c0 1.78.42 3.46 1.54 4.8l3.59-2.39z" fill="#FBBC05"/>
-            <path d="M11 4.27c1.49 0 2.81.5 3.86 1.5l2.9-2.9C15.78.99 13.6 0 11 0 6.94 0 3.28 2.43 1.54 5.79l3.59 2.8c.83-2.47 3.15-4.32 5.87-4.32z" fill="#EA4335"/>
-          </svg>
-          <span style={{ fontSize: 15, fontWeight: 600, color: C.text, flex: 1, textAlign: 'left' }}>Googleでログイン</span>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke={C.textFaint} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        </button>
-        <div style={{ textAlign: 'center', padding: 8 }}>
-          <button onClick={onNext} style={{ fontSize: 13, color: C.textMuted }}>アカウントなしでお試し →</button>
-        </div>
+      <div style={{ padding: '0 28px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+        <div id="g-btn-mobile" />
+        <button onClick={onSkip} style={{ fontSize: 13, color: C.textMuted }}>アカウントなしでお試し →</button>
       </div>
       <div style={{ textAlign: 'center', padding: '0 28px 36px' }}>
         <span style={{ fontSize: 11, color: C.textFaint }}>プライバシーポリシー　·　利用規約</span>
@@ -913,7 +922,7 @@ function ReportScreen({ go }) {
 }
 
 // ── 12 Settings ────────────────────────────────────────────────────────────
-function SettingsScreen({ go }) {
+function SettingsScreen({ go, user, onLogout }) {
   const rows = [
     { label: 'プロフィール',   detail: 'アカウント設定',  emoji: '👤' },
     { label: '税率の設定',     detail: '現在 20%',        emoji: '📊' },
@@ -931,14 +940,16 @@ function SettingsScreen({ go }) {
         {/* Profile card */}
         <Card style={{ marginBottom: 24, padding: '20px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{ width: 56, height: 56, background: C.primaryLight, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>🙂</div>
+            {user?.picture
+              ? <img src={user.picture} alt="" style={{ width: 56, height: 56, borderRadius: '50%', flexShrink: 0 }} />
+              : <div style={{ width: 56, height: 56, background: C.primaryLight, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>🙂</div>}
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>ゲストユーザー</div>
-              <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Googleアカウントでログインするとデータが保存されます</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{user?.name || 'ゲストユーザー'}</div>
+              <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{user?.email}</div>
             </div>
           </div>
-          <button style={{ marginTop: 14, width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', fontSize: 13, fontWeight: 600, color: C.primary }}>
-            Googleでログイン
+          <button onClick={onLogout} style={{ marginTop: 14, width: '100%', background: '#FEE2E2', borderRadius: 12, padding: '12px', fontSize: 13, fontWeight: 600, color: '#DC2626' }}>
+            ログアウト
           </button>
         </Card>
 
@@ -965,7 +976,8 @@ function SettingsScreen({ go }) {
 
 // ── App (router) ───────────────────────────────────────────────────────────
 function App() {
-  const [screen, setScreen] = useState('login');
+  const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('gUser') || 'null'));
+  const [screen, setScreen] = useState(() => localStorage.getItem('gUser') ? 'home' : 'login');
   const [prev,   setPrev]   = useState('home');
 
   const go = useCallback((s) => {
@@ -978,9 +990,12 @@ function App() {
     go(map[key] || key);
   }, [go]);
 
+  const onLogin = (u) => { localStorage.setItem('gUser', JSON.stringify(u)); setUser(u); setScreen('home'); };
+  const onLogout = () => { localStorage.removeItem('gUser'); if (window.google) google.accounts.id.disableAutoSelect(); setUser(null); setScreen('login'); };
+
   const render = () => {
     switch (screen) {
-      case 'login':         return <LoginScreen    onNext={() => go('onboarding1')} />;
+      case 'login':         return <LoginScreen    onLogin={onLogin} onSkip={() => go('onboarding1')} />;
       case 'onboarding1':   return <Onboarding1    onNext={() => go('onboarding2')} />;
       case 'onboarding2':   return <Onboarding2    onNext={() => go('onboarding3')} />;
       case 'onboarding3':   return <Onboarding3    onNext={() => go('home')} />;
@@ -991,7 +1006,7 @@ function App() {
       case 'tax':           return <TaxScreen       go={nav} />;
       case 'budget':        return <BudgetScreen    go={nav} />;
       case 'report':        return <ReportScreen    go={nav} />;
-      case 'settings':      return <SettingsScreen  go={nav} />;
+      case 'settings':      return <SettingsScreen  go={nav} user={user} onLogout={onLogout} />;
       default:              return <HomeScreen      go={nav} />;
     }
   };
