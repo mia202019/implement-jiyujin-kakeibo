@@ -1294,15 +1294,178 @@ function ReportScreen({ go }) {
   );
 }
 
-// ── 12 Settings ────────────────────────────────────────────────────────────
+// ── 12 Fixed Expenses (固定費) ─────────────────────────────────────────────
+const FIXED_CATS = [
+  { id: 'rent',    name: '住居',    emoji: '🏠', color: '#4A6898' },
+  { id: 'utility', name: '光熱費',  emoji: '💡', color: '#E8935F' },
+  { id: 'comms',   name: '通信費',  emoji: '📱', color: '#6A5E9C' },
+  { id: 'sub',     name: 'サブスク',emoji: '📺', color: '#C8748E' },
+  { id: 'insure',  name: '保険',    emoji: '🛡️', color: '#5B7B6F' },
+  { id: 'other',   name: 'その他',  emoji: '📋', color: '#9CA3AF' },
+];
+
+function FixedExpensesScreen({ go }) {
+  const [items, setItems] = useState(() => Store.get('fixedExpenses', []));
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: '', amount: '', cat: 'rent', payment: 'カード', day: '毎月1日' });
+
+  const save = () => {
+    if (!form.name || !form.amount) return;
+    const next = [...items, { id: Date.now(), ...form, amount: Number(form.amount), active: true }];
+    setItems(next); Store.set('fixedExpenses', next);
+    setForm({ name: '', amount: '', cat: 'rent', payment: 'カード', day: '毎月1日' });
+    setShowForm(false);
+  };
+  const toggle = id => { const n = items.map(i => i.id === id ? {...i, active: !i.active} : i); setItems(n); Store.set('fixedExpenses', n); };
+  const remove = id => { const n = items.filter(i => i.id !== id); setItems(n); Store.set('fixedExpenses', n); };
+
+  const activeTotal = items.filter(i => i.active).reduce((s,i) => s + i.amount, 0);
+  const catGroups = FIXED_CATS.map(c => ({ ...c, items: items.filter(i => i.cat === c.id) })).filter(c => c.items.length > 0);
+  const inputStyle = { background: C.bg, borderRadius: 10, padding: '11px 14px', fontSize: 14, color: C.text, border: `1.5px solid ${C.border}`, width: '100%', outline: 'none' };
+
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 20px 20px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+          <button onClick={() => go('settings')} style={{ width: 36, height: 36, borderRadius: 10, background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.08)', flexShrink: 0 }}>
+            <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7l6 6" stroke={C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: C.text }}>固定費の管理</div>
+            <div style={{ fontSize: 12, color: C.textMuted }}>毎月かかる固定の支出を登録</div>
+          </div>
+        </div>
+
+        {/* Summary card */}
+        <Card style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 600, marginBottom: 4 }}>毎月の固定費合計</div>
+          <div style={{ fontSize: 36, fontWeight: 700, color: C.text, letterSpacing: '-1.5px', fontFeatureSettings: "'tnum'" }}>¥{fmt(activeTotal)}</div>
+          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{items.filter(i=>i.active).length}件が有効 / 全{items.length}件</div>
+        </Card>
+
+        {/* Add button */}
+        <button onClick={() => setShowForm(v => !v)} style={{ width: '100%', background: C.primary, color: 'white', borderRadius: 14, padding: '14px', fontSize: 14, fontWeight: 700, marginBottom: 14, boxShadow: '0 6px 18px rgba(9,125,96,0.28)' }}>
+          {showForm ? '× 閉じる' : '+ 固定費を追加'}
+        </button>
+
+        {/* Add form */}
+        {showForm && (
+          <Card style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 14 }}>固定費を入力</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 5, fontWeight: 600 }}>名称</div>
+                <input value={form.name} onChange={e => setForm(f=>({...f, name: e.target.value}))} placeholder="例：家賃、Netflix" style={inputStyle} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 5, fontWeight: 600 }}>金額（円）</div>
+                <input type="number" value={form.amount} onChange={e => setForm(f=>({...f, amount: e.target.value}))} placeholder="0" style={{ ...inputStyle, fontSize: 22, fontWeight: 700 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 5, fontWeight: 600 }}>カテゴリ</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                  {FIXED_CATS.map(c => (
+                    <button key={c.id} onClick={() => setForm(f=>({...f, cat: c.id}))} style={{ background: form.cat === c.id ? c.color : C.bg, color: form.cat === c.id ? 'white' : C.text, borderRadius: 10, padding: '8px 6px', fontSize: 11, fontWeight: form.cat === c.id ? 700 : 400, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                      <span style={{ fontSize: 18 }}>{c.emoji}</span>{c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 5, fontWeight: 600 }}>引き落とし日</div>
+                  <select value={form.day} onChange={e => setForm(f=>({...f, day: e.target.value}))} style={{ ...inputStyle, fontSize: 12 }}>
+                    {['毎月1日','毎月5日','毎月10日','毎月15日','毎月20日','毎月25日','毎月末日'].map(d => <option key={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 5, fontWeight: 600 }}>支払い</div>
+                  <select value={form.payment} onChange={e => setForm(f=>({...f, payment: e.target.value}))} style={{ ...inputStyle, fontSize: 12 }}>
+                    {['カード','口座振替','現金','PayPay'].map(p => <option key={p}>{p}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button onClick={save} style={{ flex: 1, background: C.primary, color: 'white', borderRadius: 10, padding: '12px', fontSize: 13, fontWeight: 700 }}>保存</button>
+                <button onClick={() => setShowForm(false)} style={{ flex: 1, background: C.bg, color: C.textMuted, borderRadius: 10, padding: '12px', fontSize: 13 }}>キャンセル</button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Category breakdown */}
+        {catGroups.length > 0 && (
+          <Card style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>カテゴリ別</div>
+            {catGroups.map(c => {
+              const amt = c.items.filter(i=>i.active).reduce((s,i)=>s+i.amount, 0);
+              return (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <span style={{ fontSize: 18 }}>{c.emoji}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{c.name}</div>
+                    <div style={{ fontSize: 11, color: C.textMuted }}>{c.items.filter(i=>i.active).length}件</div>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFeatureSettings: "'tnum'" }}>¥{fmt(amt)}</div>
+                </div>
+              );
+            })}
+          </Card>
+        )}
+
+        {/* List */}
+        <Card style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 14 }}>固定費一覧</div>
+          {items.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: C.textFaint, fontSize: 13, lineHeight: 2 }}>
+              固定費がまだありません<br/>「固定費を追加」から入力してください
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {items.map(item => {
+                const cat = FIXED_CATS.find(c => c.id === item.cat) || FIXED_CATS[5];
+                return (
+                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: item.active ? C.bg : '#F5F5F5', borderRadius: 14, opacity: item.active ? 1 : 0.6 }}>
+                    <div style={{ width: 36, height: 36, background: item.active ? cat.color : '#CCC', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{cat.emoji}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{item.name}</div>
+                      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 1 }}>{cat.name} · {item.day}</div>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: item.active ? C.text : C.textMuted, fontFeatureSettings: "'tnum'", flexShrink: 0 }}>¥{fmt(item.amount)}</div>
+                    <button onClick={() => toggle(item.id)} style={{ width: 40, height: 22, borderRadius: 11, background: item.active ? C.primary : C.border, position: 'relative', flexShrink: 0, border: 'none', cursor: 'pointer', transition: 'background .2s' }}>
+                      <div style={{ width: 16, height: 16, background: 'white', borderRadius: '50%', position: 'absolute', top: 3, left: item.active ? 21 : 3, transition: 'left .2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+                    </button>
+                    <button onClick={() => remove(item.id)} style={{ width: 28, height: 28, borderRadius: 7, background: '#FEE2E2', color: '#DC2626', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', cursor: 'pointer' }}>×</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {items.length > 0 && (
+            <div style={{ marginTop: 14, padding: '12px 14px', background: C.primaryLight, borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: C.primary }}>有効な固定費の合計</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: C.primary, fontFeatureSettings: "'tnum'" }}>¥{fmt(activeTotal)}</span>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <BottomNav active="settings" go={go} />
+    </Screen>
+  );
+}
+
+// ── 13 Settings ────────────────────────────────────────────────────────────
 function SettingsScreen({ go, user, onLogout }) {
+  const fixedCount = Store.get('fixedExpenses', []).length;
   const rows = [
-    { label: 'プロフィール',   detail: 'アカウント設定',  emoji: '👤' },
-    { label: '税率の設定',     detail: '現在 20%',        emoji: '📊' },
-    { label: '固定費の管理',   detail: '5件登録済み',     emoji: '📋' },
-    { label: 'カテゴリの編集', detail: 'カスタマイズ',    emoji: '🏷' },
-    { label: '通知設定',       detail: 'オン',            emoji: '🔔' },
-    { label: 'データのバックアップ', detail: 'Google Drive', emoji: '☁️' },
+    { label: 'プロフィール',   detail: 'アカウント設定',       emoji: '👤', action: null },
+    { label: '税率の設定',     detail: '現在 20%',             emoji: '📊', action: null },
+    { label: '固定費の管理',   detail: `${fixedCount}件登録済み`, emoji: '📋', action: () => go('fixed') },
+    { label: 'カテゴリの編集', detail: 'カスタマイズ',         emoji: '🏷', action: null },
+    { label: '通知設定',       detail: 'オン',                 emoji: '🔔', action: null },
+    { label: 'データのバックアップ', detail: 'Google Drive',   emoji: '☁️', action: null },
   ];
 
   return (
@@ -1327,7 +1490,7 @@ function SettingsScreen({ go, user, onLogout }) {
         </Card>
 
         {rows.map((row, i) => (
-          <div key={row.label} style={{ background: 'white', borderRadius: 16, padding: '16px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 1px 6px rgba(0,0,0,0.04)', cursor: 'pointer' }}>
+          <div key={row.label} onClick={row.action || undefined} style={{ background: 'white', borderRadius: 16, padding: '16px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 1px 6px rgba(0,0,0,0.04)', cursor: row.action ? 'pointer' : 'default' }}>
             <span style={{ fontSize: 18, width: 28, textAlign: 'center' }}>{row.emoji}</span>
             <div style={{ flex: 1, fontSize: 14, fontWeight: 500, color: C.text }}>{row.label}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1400,6 +1563,7 @@ function App() {
       case 'tax':           return <TaxScreen       go={nav} />;
       case 'budget':        return <BudgetScreen    go={nav} />;
       case 'report':        return <ReportScreen    go={nav} />;
+      case 'fixed':         return <FixedExpensesScreen go={nav} />;
       case 'settings':      return <SettingsScreen  go={nav} user={user} onLogout={onLogout} />;
       default:              return <HomeScreen      go={nav} />;
     }
