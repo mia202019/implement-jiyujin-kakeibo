@@ -40,6 +40,10 @@
 const { useState, useCallback, useEffect } = React;
 const CLIENT_ID = '954710101476-go30mqdlnjbu24qji456qkjhe318bf9q.apps.googleusercontent.com';
 function parseJwt(t) { return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); }
+const Store = {
+  get: (key, def={}) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; } },
+  set: (key, val) => localStorage.setItem(key, JSON.stringify(val)),
+};
 
 // ── Design tokens (shared with the mobile build) ───────────────────────────
 const C = {
@@ -156,13 +160,20 @@ function Sidebar({ active, go }) {
       </nav>
 
       <div style={{ padding: 14, borderTop: `1px solid ${C.bgCard}` }}>
-        <button onClick={() => go('settings')} className="navbtn" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 13, width: '100%', textAlign: 'left' }}>
-          <div style={{ width: 38, height: 38, background: C.primaryLight, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>🙂</div>
-          <div style={{ overflow: 'hidden' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.text, whiteSpace: 'nowrap' }}>ゲストユーザー</div>
-            <div style={{ fontSize: 11, color: C.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>未ログイン</div>
-          </div>
-        </button>
+        {(() => {
+          const u = JSON.parse(localStorage.getItem('gUser') || 'null');
+          return (
+            <button onClick={() => go('settings')} className="navbtn" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 13, width: '100%', textAlign: 'left' }}>
+              {u?.picture
+                ? <img src={u.picture} alt="" style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0 }} />
+                : <div style={{ width: 38, height: 38, background: C.primaryLight, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>🙂</div>}
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>{u?.name || 'ゲストユーザー'}</div>
+                <div style={{ fontSize: 11, color: C.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>{u?.email || '未ログイン'}</div>
+              </div>
+            </button>
+          );
+        })()}
       </div>
     </aside>
   );
@@ -701,6 +712,43 @@ function SettingsScreen({ go, user, onLogout }) {
   );
 }
 
+// ── User type selection (desktop) ────────────────────────────────────────────
+function UserTypeScreen({ onSelect }) {
+  const [sel, setSel] = useState(null);
+  const types = [
+    { id: 'freelance', emoji: '💼', title: 'フリーランス',   desc: '個人事業主・フリーランスとして活動中' },
+    { id: 'employee',  emoji: '🏢', title: '会社員',         desc: '会社に勤めて給与をもらっている' },
+    { id: 'hybrid',    emoji: '⚡', title: '会社員 + 副業',  desc: '給与と副収入の両方がある' },
+  ];
+  return (
+    <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: 'white', borderRadius: 28, padding: '52px 48px', maxWidth: 520, width: '90%', boxShadow: '0 24px 72px rgba(0,0,0,0.12)' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, letterSpacing: '0.08em', marginBottom: 12 }}>SETUP</div>
+        <div style={{ fontSize: 26, fontWeight: 700, color: C.text, marginBottom: 8 }}>あなたの働き方は？</div>
+        <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 36 }}>あなたに合った設定でスタートします</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 36 }}>
+          {types.map(t => {
+            const active = sel === t.id;
+            return (
+              <button key={t.id} onClick={() => setSel(t.id)} style={{ background: active ? C.primaryLight : C.bg, border: `${active ? 2 : 1.5}px solid ${active ? C.primary : C.border}`, borderRadius: 18, padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 16, boxShadow: active ? '0 4px 16px rgba(9,125,96,0.15)' : 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}>
+                <div style={{ width: 52, height: 52, background: active ? C.primary : 'white', borderRadius: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>{t.emoji}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 3 }}>{t.title}</div>
+                  <div style={{ fontSize: 13, color: C.textMuted }}>{t.desc}</div>
+                </div>
+                {active && <div style={{ width: 26, height: 26, background: C.primary, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="12" height="10" viewBox="0 0 12 10" fill="none"><path d="M1 5L4.5 8.5L11 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg></div>}
+              </button>
+            );
+          })}
+        </div>
+        <button onClick={() => sel && onSelect(sel)} style={{ width: '100%', background: sel ? C.primary : C.border, color: 'white', borderRadius: 16, padding: '16px', fontSize: 15, fontWeight: 700, cursor: sel ? 'pointer' : 'default', transition: 'background .15s' }}>
+          はじめる →
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Login screen ─────────────────────────────────────────────────────────────
 function LoginScreen({ onLogin }) {
   useEffect(() => {
@@ -741,9 +789,23 @@ function App() {
   const [screen, setScreen] = useState(new URLSearchParams(location.search).get('screen') || 'home');
   const go = useCallback(s => { setScreen(s); window.scrollTo(0, 0); }, []);
 
-  if (!user) return <LoginScreen onLogin={u => { localStorage.setItem('gUser', JSON.stringify(u)); setUser(u); }} />;
+  if (!user) return <LoginScreen onLogin={u => {
+    localStorage.setItem('gUser', JSON.stringify(u));
+    setUser(u);
+    if (!Store.get('settings').onboardingDone) setScreen('usertype');
+  }} />;
 
-  const onLogout = () => { localStorage.removeItem('gUser'); if (window.google) google.accounts.id.disableAutoSelect(); setUser(null); };
+  const onLogout = () => {
+    localStorage.removeItem('gUser');
+    Store.set('settings', {});
+    if (window.google) google.accounts.id.disableAutoSelect();
+    setUser(null);
+  };
+
+  if (screen === 'usertype') return <UserTypeScreen onSelect={type => {
+    Store.set('settings', { ...Store.get('settings'), userType: type, onboardingDone: true });
+    go('home');
+  }} />;
 
   switch (screen) {
     case 'input':    return <InputScreen    go={go} />;
