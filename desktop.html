@@ -488,10 +488,58 @@ function HomeScreen({ go }) {
               <span>{monthLabel}初</span><span>今日（{today.getDate()}日）</span><span>{monthLabel}末</span>
             </div>
           </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
-            <StatCard label="今月の収入" value={`¥${fmt(income)}`} sub="合計" color={C.text} />
-            <StatCard label="月末残り予測" value={`¥${fmt(lifeRemaining)}`} sub="税・固定費除く" color={C.warning} labelColor={C.warning} />
-          </div>
+          {(() => {
+            const investUsed = sumDiv(mTxns, '投資');
+            const budgetItems = [
+              { key:'生活費',  label:'生活費',  icon:'🏠', color:C.info,    used: lifeSpent },
+              { key:'税金積立', label:'税金積立', icon:'📊', color:C.warning, used: taxSaved },
+              { key:'投資',    label: userType==='employee'?'貯蓄':'投資', icon:'📈', color:C.invest, used: investUsed },
+            ];
+            const hasBudget = budgetItems.some(it => (bdg[it.key]||0) > 0);
+            return (
+              <Card hover style={{ display:'flex', flexDirection:'column', gap:0 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+                  <div style={{ fontSize:14, fontWeight:700, color:C.text }}>今月の予算</div>
+                  <button onClick={() => go('budget')} style={{ fontSize:12, color:C.primary, fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:'2px 8px' }}>設定 →</button>
+                </div>
+                {budgetItems.map((item, i) => {
+                  const bgt = bdg[item.key] || 0;
+                  const rem = Math.max(0, bgt - item.used);
+                  const pct = bgt > 0 ? Math.min(100, Math.round(item.used/bgt*100)) : 0;
+                  const over = item.used > bgt && bgt > 0;
+                  return (
+                    <div key={item.key} style={{ marginBottom: i < budgetItems.length-1 ? 18 : 0 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                          <span style={{ fontSize:16 }}>{item.icon}</span>
+                          <span style={{ fontSize:13, fontWeight:600, color:C.textMed }}>{item.label}</span>
+                        </div>
+                        <div style={{ display:'flex', alignItems:'baseline', gap:4 }}>
+                          <span style={{ fontSize:14, fontWeight:700, color: over ? C.warning : C.text, fontFeatureSettings:tnum }}>¥{fmt(item.used)}</span>
+                          {bgt > 0 && <span style={{ fontSize:11, color:C.textFaint, fontFeatureSettings:tnum }}>/ ¥{fmt(bgt)}</span>}
+                          {bgt === 0 && <span style={{ fontSize:10, color:C.textFaint, background:'#f3f4f6', padding:'1px 6px', borderRadius:4 }}>未設定</span>}
+                        </div>
+                      </div>
+                      {bgt > 0 ? (
+                        <>
+                          <Bar pct={pct} color={over ? C.warning : item.color} />
+                          <div style={{ display:'flex', justifyContent:'space-between', marginTop:4, fontSize:11, color: over ? C.warning : C.textMuted }}>
+                            <span>{over ? '⚠ 予算オーバー' : `残り ¥${fmt(rem)}`}</span>
+                            <span style={{ fontFeatureSettings:tnum }}>{pct}%使用</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ height:4, background:'#f3f4f6', borderRadius:4 }} />
+                      )}
+                    </div>
+                  );
+                })}
+                {!hasBudget && (
+                  <div style={{ marginTop:10, fontSize:12, color:C.textFaint, textAlign:'center' }}>予算を設定すると残高が表示されます</div>
+                )}
+              </Card>
+            );
+          })()}
         </div>
 
         <div style={{ display:'grid', gridTemplateColumns:'1.55fr 1fr', gap:20, marginTop:20, alignItems:'start' }}>
@@ -568,10 +616,45 @@ function HomeScreen({ go }) {
             ))}
           </div>
         </div>
-        <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
-          <StatCard label="事業経費" value={`¥${fmt(bizSpent)}`} sub="今月の合計" color={C.text} />
-          <StatCard label="純利益" value={`¥${fmt(Math.abs(bizProfit))}`} sub={bizProfit>=0?'黒字':'赤字'} color={bizProfit>=0?C.primary:C.warning} labelColor={bizProfit>=0?C.primary:C.warning} />
-        </div>
+        {(() => {
+          const bgt = bdg['事業費'] || 0;
+          const rem = Math.max(0, bgt - bizSpent);
+          const pct = bgt > 0 ? Math.min(100, Math.round(bizSpent/bgt*100)) : 0;
+          const over = bizSpent > bgt && bgt > 0;
+          return (
+            <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+              <StatCard label="純利益" value={`¥${fmt(Math.abs(bizProfit))}`} sub={bizProfit>=0?'黒字':'赤字'} color={bizProfit>=0?C.primary:C.warning} labelColor={bizProfit>=0?C.primary:C.warning} />
+              <Card hover style={{ display:'flex', flexDirection:'column' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                  <div style={{ fontSize:14, fontWeight:700, color:C.text }}>事業費の予算</div>
+                  <button onClick={() => go('budget')} style={{ fontSize:12, color:C.primary, fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:'2px 8px' }}>設定 →</button>
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                    <span style={{ fontSize:16 }}>💼</span>
+                    <span style={{ fontSize:13, fontWeight:600, color:C.textMed }}>事業費</span>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'baseline', gap:4 }}>
+                    <span style={{ fontSize:14, fontWeight:700, color: over ? C.warning : C.text, fontFeatureSettings:tnum }}>¥{fmt(bizSpent)}</span>
+                    {bgt > 0 && <span style={{ fontSize:11, color:C.textFaint, fontFeatureSettings:tnum }}>/ ¥{fmt(bgt)}</span>}
+                    {bgt === 0 && <span style={{ fontSize:10, color:C.textFaint, background:'#f3f4f6', padding:'1px 6px', borderRadius:4 }}>未設定</span>}
+                  </div>
+                </div>
+                {bgt > 0 ? (
+                  <>
+                    <Bar pct={pct} color={over ? C.warning : C.primary} />
+                    <div style={{ display:'flex', justifyContent:'space-between', marginTop:4, fontSize:11, color: over ? C.warning : C.textMuted }}>
+                      <span>{over ? '⚠ 予算オーバー' : `残り ¥${fmt(rem)}`}</span>
+                      <span style={{ fontFeatureSettings:tnum }}>{pct}%使用</span>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize:11, color:C.textFaint, textAlign:'center', padding:'6px 0' }}>予算を設定すると残高が表示されます</div>
+                )}
+              </Card>
+            </div>
+          );
+        })()}
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'1.55fr 1fr', gap:20, marginTop:20, alignItems:'start' }}>
@@ -892,83 +975,152 @@ function BudgetScreen({ go }) {
   const userType = s.userType || 'freelance';
   const income = (s.salary || 0) + (s.sideIncome || 0) + (s.income || 0);
   const taxRate = s.taxRate || 20;
-  const defaultBudgets = { '生活費': 0, '事業費': 0, '税金積立': Math.round(income * taxRate / 100), '投資': s.savingsGoal || 0 };
-  const [budgets, setBudgets] = useState(() => ({ ...defaultBudgets, ...Store.get('budgets', {}) }));
+  const defaultTax = Math.round(income * taxRate / 100);
+  const [budgets, setBudgets] = useState(() => ({
+    '生活費': 0, '事業費': 0, '税金積立': defaultTax, '投資': s.savingsGoal || 0,
+    ...Store.get('budgets', {}),
+  }));
   const [editKey, setEditKey] = useState(null);
   const [editVal, setEditVal] = useState('');
 
   const txns = getThisMonthTxns();
-  const lifeUsed = sumDiv(txns, '生活費');
-  const bizUsed = sumDiv(txns, '事業費');
-  const taxUsed = sumDiv(txns, '税金');
-  const investUsed = sumDiv(txns, '投資');
+  const usedMap = {
+    '生活費':  sumDiv(txns, '生活費'),
+    '事業費':  sumDiv(txns, '事業費'),
+    '税金積立': sumDiv(txns, '税金'),
+    '投資':    sumDiv(txns, '投資'),
+  };
 
-  const bizLabel = userType === 'employee' ? '特別支出' : '事業費';
-  const investLabel = userType === 'freelance' ? '投資' : '貯蓄';
   const cats = [
-    { key: '生活費', name: '生活費', used: lifeUsed, budget: budgets['生活費'] || 0, color: C.info },
-    { key: '事業費', name: bizLabel, used: bizUsed, budget: budgets['事業費'] || 0, color: C.primary },
-    { key: '税金積立', name: '税金積立', used: taxUsed, budget: budgets['税金積立'] || 0, color: C.warning },
-    { key: '投資', name: investLabel, used: investUsed, budget: budgets['投資'] || 0, color: C.invest },
-  ].map(c => {
-    const pct = c.budget > 0 ? Math.min(100, Math.round(c.used / c.budget * 100)) : 0;
-    const warn = pct >= 80;
-    return { ...c, pct, warn, note: c.budget > 0 ? `${pct}%` : '予算未設定', noteColor: warn ? C.warning : C.textMuted };
-  });
+    { key:'生活費',  name:'生活費',  color:C.info,    icon:'🏠', desc:'食費・交通費など日々の出費' },
+    { key:'事業費',  name:userType==='employee'?'特別支出':'事業費', color:C.primary, icon:'💼', desc:'材料費・機材・経費' },
+    { key:'税金積立', name:'税金積立', color:C.warning, icon:'📊', desc:`${taxRate}% 積立目標` },
+    { key:'投資',    name:userType==='freelance'?'投資':'貯蓄', color:C.invest, icon:'📈', desc:'将来への積立' },
+  ];
 
-  const totalUsed = cats.reduce((s, c) => s + c.used, 0);
-  const totalBudget = cats.reduce((s, c) => s + c.budget, 0);
-  const totalPct = totalBudget > 0 ? Math.min(100, Math.round(totalUsed / totalBudget * 100)) : 0;
+  const totalBudget = cats.reduce((s,c)=>s+(budgets[c.key]||0), 0);
+  const totalUsed   = cats.reduce((s,c)=>s+(usedMap[c.key]||0), 0);
+  const unallocated = income - totalBudget;
 
-  const startEdit = (key, val) => { setEditKey(key); setEditVal(String(val)); };
-  const commitEdit = () => {
-    if (editKey) {
-      const next = { ...budgets, [editKey]: parseInt(editVal) || 0 };
-      setBudgets(next); Store.set('budgets', next);
-    }
-    setEditKey(null);
+  const commitEdit = (key) => {
+    const next = { ...budgets, [key]: parseInt(editVal)||0 };
+    setBudgets(next); Store.set('budgets', next); setEditKey(null);
+  };
+
+  const applyPreset = (name) => {
+    if (!income) return;
+    const tax = taxRate / 100;
+    const presets = {
+      'バランス型': [0.40, 0.20, tax, 0.10],
+      '節税重視':   [0.35, 0.15, tax, 0.20],
+      '事業優先':   [0.25, 0.35, tax, 0.10],
+    };
+    const [r0,r1,r2,r3] = presets[name];
+    const next = { '生活費': Math.round(income*r0), '事業費': Math.round(income*r1), '税金積立': Math.round(income*r2), '投資': Math.round(income*r3) };
+    setBudgets(next); Store.set('budgets', next);
   };
 
   return (
-    <Shell active="budget" go={go} title="予算管理" subtitle={`総予算 ¥${fmt(totalBudget)} · 使用済み ¥${fmt(totalUsed)}`} actions={<MonthPill />}>
-      <Card style={{ marginBottom: 20 }}>
-        <SectionTitle right={<span style={{ fontSize: 13, color: C.textMuted, fontFeatureSettings: tnum }}>¥{fmt(totalUsed)} / ¥{fmt(totalBudget)}</span>}>全体予算</SectionTitle>
-        <div style={{ background: C.bgCard, borderRadius: 6, height: 12, marginBottom: 8, overflow: 'hidden' }}>
-          <div style={{ background: `linear-gradient(90deg, ${C.info} 40%, ${C.primary} 40% 75%, ${C.warning} 75% 90%, ${C.invest} 90%)`, width: `${totalPct}%`, height: '100%', borderRadius: 6, transition: 'width .3s' }} />
-        </div>
-        <div style={{ fontSize: 12, color: C.textMuted }}>予算の{totalPct}%を使用中</div>
-      </Card>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {cats.map(item => (
-          <Card key={item.key} hover>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <div style={{ width: 11, height: 11, borderRadius: 3, background: item.color }} />
-                <span style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{item.name}</span>
+    <Shell active="budget" go={go} title="予算管理" subtitle={`今月の収入 ¥${fmt(income)}`} actions={<MonthPill />}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1.6fr', gap:20, alignItems:'start' }}>
+        {/* Left: Income + stacked bar + presets */}
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          <Card>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
+              <div>
+                <div style={{ fontSize:12, fontWeight:600, color:C.textMuted, marginBottom:4 }}>今月の収入</div>
+                <div style={{ fontSize:28, fontWeight:700, color:C.text, fontFeatureSettings:tnum }}>¥{fmt(income)}</div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: item.warn ? C.warning : C.text, fontFeatureSettings: tnum }}>¥{fmt(item.used)}</span>
-                {editKey === item.key ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontSize: 12, color: C.textMuted }}>/</span>
-                    <input autoFocus type="number" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={commitEdit} onKeyDown={e => e.key === 'Enter' && commitEdit()} style={{ width: 96, fontSize: 13, padding: '5px 8px', border: `2px solid ${C.primary}`, borderRadius: 9, outline: 'none', background: 'white' }} />
-                  </div>
-                ) : (
-                  <button onClick={() => startEdit(item.key, item.budget)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: C.bg, borderRadius: 8, padding: '5px 9px', border: `1px solid ${C.border}` }}>
-                    <span style={{ fontSize: 12, color: C.textMuted, fontFeatureSettings: tnum }}>/ ¥{fmt(item.budget)}</span>
-                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5L10.5 3.5L3.5 10.5H1.5V8.5L8.5 1.5Z" stroke={C.textMuted} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </button>
-                )}
+              <div style={{ textAlign:'right' }}>
+                <div style={{ fontSize:12, fontWeight:600, color:unallocated>=0?C.primary:C.warning, marginBottom:4 }}>{unallocated>=0?'未配分':'配分超過'}</div>
+                <div style={{ fontSize:22, fontWeight:700, color:unallocated>=0?C.primary:C.warning, fontFeatureSettings:tnum }}>
+                  {unallocated<0&&'-'}¥{fmt(Math.abs(unallocated))}
+                </div>
               </div>
             </div>
-            <Bar pct={item.pct} color={item.color} h={10} />
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, marginTop: 8 }}>
-              {item.warn && <svg width="11" height="10" viewBox="0 0 11 10" fill="none"><path d="M5.5 1L10 9H1L5.5 1Z" stroke={C.warning} strokeWidth="1.2" fill="none"/><path d="M5.5 4V6.5M5.5 7.5V8" stroke={C.warning} strokeWidth="1.2" strokeLinecap="round"/></svg>}
-              <span style={{ fontSize: 11, color: item.noteColor }}>{item.note}</span>
+            <div style={{ background:C.bgCard, borderRadius:6, height:12, overflow:'hidden', display:'flex', marginBottom:10 }}>
+              {cats.map(c => {
+                const w = income > 0 ? Math.min(99, Math.round((budgets[c.key]||0)/income*100)) : 0;
+                return w > 0 ? <div key={c.key} style={{ width:`${w}%`, background:c.color, height:'100%' }} /> : null;
+              })}
+            </div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'6px 14px' }}>
+              {cats.map(c => income>0 && (budgets[c.key]||0)>0 ? (
+                <div key={c.key} style={{ display:'flex', alignItems:'center', gap:4 }}>
+                  <div style={{ width:7, height:7, borderRadius:2, background:c.color }} />
+                  <span style={{ fontSize:11, color:C.textMuted }}>{c.key} {Math.round((budgets[c.key]||0)/income*100)}%</span>
+                </div>
+              ) : null)}
             </div>
           </Card>
-        ))}
+
+          {income > 0 && (
+            <Card>
+              <div style={{ fontSize:12, fontWeight:700, color:C.textMuted, marginBottom:12 }}>クイック配分</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {['バランス型','節税重視','事業優先'].map(p => (
+                  <button key={p} onClick={() => applyPreset(p)} style={{ background:C.bg, borderRadius:10, padding:'11px 14px', fontSize:13, fontWeight:600, color:C.primary, border:`1.5px solid ${C.primary}33`, cursor:'pointer', textAlign:'left' }}>{p}</button>
+                ))}
+              </div>
+            </Card>
+          )}
+        </div>
+
+        {/* Right: Per-category cards */}
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          {cats.map(item => {
+            const budget = budgets[item.key] || 0;
+            const used = usedMap[item.key] || 0;
+            const pct = budget > 0 ? Math.min(100, Math.round(used/budget*100)) : 0;
+            const remaining = Math.max(0, budget - used);
+            const over = used > budget && budget > 0;
+            const incPct = income > 0 && budget > 0 ? Math.round(budget/income*100) : 0;
+
+            return (
+              <Card key={item.key} hover>
+                <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}>
+                  <div style={{ width:46, height:46, background:item.color+'18', borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>{item.icon}</div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:15, fontWeight:700, color:C.text }}>{item.name}</div>
+                    <div style={{ fontSize:12, color:C.textMuted }}>{item.desc}</div>
+                  </div>
+                  {editKey === item.key ? (
+                    <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                      <span style={{ fontSize:14, color:C.textMuted }}>¥</span>
+                      <input autoFocus type="number" value={editVal}
+                        onChange={e => setEditVal(e.target.value)}
+                        onBlur={() => commitEdit(item.key)}
+                        onKeyDown={e => e.key==='Enter' && commitEdit(item.key)}
+                        style={{ width:110, fontSize:16, fontWeight:700, padding:'8px 10px', border:`2px solid ${item.color}`, borderRadius:10, outline:'none', textAlign:'right', background:'white' }}
+                      />
+                    </div>
+                  ) : (
+                    <button onClick={() => { setEditKey(item.key); setEditVal(String(budget)); }}
+                      style={{ background:C.bg, borderRadius:12, padding:'8px 14px', border:`1.5px solid ${C.border}`, cursor:'pointer', display:'flex', alignItems:'center', gap:7 }}>
+                      <span style={{ fontSize:15, fontWeight:700, color:C.text, fontFeatureSettings:tnum }}>¥{fmt(budget)}</span>
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5L10.5 3.5L3.5 10.5H1.5V8.5L8.5 1.5Z" stroke={C.textMuted} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </button>
+                  )}
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:8 }}>
+                  <span style={{ color:C.textMuted }}>使用 <strong style={{ color:over?C.warning:C.text, fontFeatureSettings:tnum }}>¥{fmt(used)}</strong></span>
+                  <div style={{ display:'flex', gap:14, alignItems:'center' }}>
+                    {budget > 0 && <span style={{ color:over?C.warning:C.primary }}>残 <strong style={{ fontFeatureSettings:tnum }}>¥{fmt(remaining)}</strong></span>}
+                    {incPct > 0 && <span style={{ color:C.textFaint }}>収入の{incPct}%</span>}
+                  </div>
+                </div>
+                {budget > 0 ? (
+                  <>
+                    <Bar pct={pct} color={over?C.warning:item.color} h={8} />
+                    <div style={{ textAlign:'right', fontSize:11, color:over?C.warning:C.textMuted, marginTop:4 }}>{pct}%{over&&' 超過'}</div>
+                  </>
+                ) : (
+                  <div style={{ fontSize:12, color:C.textFaint, fontStyle:'italic' }}>クリックして予算を設定 →</div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
       </div>
     </Shell>
   );
