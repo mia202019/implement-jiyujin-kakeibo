@@ -122,6 +122,8 @@ const NAV = [
     icon: a => <svg width="20" height="20" viewBox="0 0 22 22" fill="none"><path d="M2 9.5L11 2L20 9.5V20C20 20.55 19.55 21 19 21H14V15.5H8V21H3C2.45 21 2 20.55 2 20V9.5Z" fill={a ? 'white' : 'none'} stroke={a ? 'none' : C.textMuted} strokeWidth="1.6"/></svg> },
   { key: 'input',    label: '入力',
     icon: a => <svg width="20" height="20" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9" fill={a ? 'white' : 'none'} stroke={a ? 'none' : C.textMuted} strokeWidth="1.6"/><path d="M11 7V15M7 11H15" stroke={a ? C.primary : C.textMuted} strokeWidth="1.8" strokeLinecap="round"/></svg> },
+  { key: 'business', label: '事業管理',
+    icon: a => <svg width="20" height="20" viewBox="0 0 22 22" fill="none"><rect x="2" y="7" width="18" height="13" rx="2.5" fill={a ? 'white' : 'none'} stroke={a ? 'none' : C.textMuted} strokeWidth="1.6"/><path d="M7 7V5C7 3.9 7.9 3 9 3H13C14.1 3 15 3.9 15 5V7" stroke={a ? 'white' : C.textMuted} strokeWidth="1.6" strokeLinecap="round"/><path d="M11 12V16M9 14H13" stroke={a ? C.primary : C.textMuted} strokeWidth="1.6" strokeLinecap="round"/></svg> },
   { key: 'budget',   label: '予算管理',
     icon: a => <svg width="20" height="20" viewBox="0 0 22 22" fill="none"><rect x="2" y="4" width="18" height="14" rx="3" fill={a ? 'white' : 'none'} stroke={a ? 'none' : C.textMuted} strokeWidth="1.6"/><path d="M6 9H16M6 13H11" stroke={a ? C.primary : C.textMuted} strokeWidth="1.6" strokeLinecap="round"/></svg> },
   { key: 'tax',      label: '税金・積立',
@@ -216,6 +218,136 @@ function MonthPill() {
       <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>2026年6月</span>
       <button style={{ display: 'flex' }}><svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M4 2L9 6L4 10" stroke={C.textFaint} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
     </div>
+  );
+}
+
+// ── Business (事業管理) ──────────────────────────────────────────────────────
+const BIZ_CATS = [
+  { id: 'materials', name: '材料費',     color: '#097D60', emoji: '📦' },
+  { id: 'equipment', name: '機材・ソフト', color: '#4A6898', emoji: '💻' },
+  { id: 'outsource', name: '外注費',     color: '#6A5E9C', emoji: '👥' },
+  { id: 'transport', name: '交通費',     color: '#C8748E', emoji: '🚃' },
+  { id: 'ad',        name: '広告宣伝',   color: '#E8935F', emoji: '📢' },
+  { id: 'comms',     name: '通信費',     color: '#5B7B6F', emoji: '📡' },
+  { id: 'books',     name: '書籍・学習', color: '#8B5CF6', emoji: '📚' },
+  { id: 'other',     name: 'その他',     color: '#9CA3AF', emoji: '📋' },
+];
+
+function BusinessScreen({ go }) {
+  const [expenses, setExpenses] = useState(() => Store.get('bizExpenses', []));
+  const [form, setForm] = useState({ cat: 'equipment', amount: '', memo: '', date: new Date().toISOString().slice(0,10) });
+  const [showForm, setShowForm] = useState(false);
+  const [filter, setFilter] = useState('all');
+
+  const save = () => {
+    if (!form.amount) return;
+    const next = [{ id: Date.now(), ...form, amount: Number(form.amount) }, ...expenses];
+    setExpenses(next); Store.set('bizExpenses', next);
+    setForm({ cat: 'equipment', amount: '', memo: '', date: new Date().toISOString().slice(0,10) });
+    setShowForm(false);
+  };
+  const remove = (id) => { const next = expenses.filter(e => e.id !== id); setExpenses(next); Store.set('bizExpenses', next); };
+
+  const total = expenses.reduce((s, e) => s + e.amount, 0);
+  const catTotals = BIZ_CATS.map(c => ({ ...c, amt: expenses.filter(e => e.cat === c.id).reduce((s,e) => s+e.amount, 0) })).filter(c => c.amt > 0).sort((a,b) => b.amt - a.amt);
+  const filtered = filter === 'all' ? expenses : expenses.filter(e => e.cat === filter);
+
+  return (
+    <Shell active="business" go={go} title="事業管理" subtitle="経費・事業収支の管理">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 20, alignItems: 'start' }}>
+
+        {/* Left: Summary + Form + Category */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <Card>
+            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6, fontWeight: 600 }}>今月の経費合計</div>
+            <div style={{ fontSize: 40, fontWeight: 700, color: C.text, letterSpacing: '-2px', fontFeatureSettings: tnum }}>¥{fmt(total)}</div>
+            <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>全額が経費控除の対象</div>
+            <div style={{ height: 1, background: C.border, margin: '16px 0' }} />
+            <button onClick={() => setShowForm(v => !v)} className="lift" style={{ width: '100%', background: C.primary, color: 'white', borderRadius: 12, padding: '12px', fontSize: 14, fontWeight: 700, boxShadow: '0 6px 18px rgba(9,125,96,0.28)' }}>
+              {showForm ? '× 閉じる' : '+ 経費を追加'}
+            </button>
+          </Card>
+
+          {showForm && (
+            <Card>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 14 }}>経費を入力</div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6, fontWeight: 600 }}>カテゴリ</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  {BIZ_CATS.map(c => (
+                    <button key={c.id} onClick={() => setForm(f => ({...f, cat: c.id}))} style={{ background: form.cat === c.id ? c.color : C.bg, color: form.cat === c.id ? 'white' : C.text, borderRadius: 10, padding: '8px 10px', fontSize: 12, fontWeight: form.cat === c.id ? 700 : 400, display: 'flex', alignItems: 'center', gap: 6, border: 'none', cursor: 'pointer' }}>
+                      <span>{c.emoji}</span>{c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6, fontWeight: 600 }}>金額（円）</div>
+                <input type="number" value={form.amount} onChange={e => setForm(f => ({...f, amount: e.target.value}))} placeholder="0" style={{ width: '100%', fontSize: 22, fontWeight: 700, padding: '10px 14px', border: `1.5px solid ${C.border}`, borderRadius: 10, outline: 'none', background: C.bg }} />
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6, fontWeight: 600 }}>メモ（任意）</div>
+                <input value={form.memo} onChange={e => setForm(f => ({...f, memo: e.target.value}))} placeholder="例：Adobe CC 月額" style={{ width: '100%', fontSize: 13, padding: '10px 14px', border: `1.5px solid ${C.border}`, borderRadius: 10, outline: 'none', background: C.bg }} />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={save} style={{ flex: 1, background: C.primary, color: 'white', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer' }}>保存</button>
+                <button onClick={() => setShowForm(false)} style={{ flex: 1, background: C.bg, color: C.textMuted, borderRadius: 10, padding: '11px', fontSize: 13, border: 'none', cursor: 'pointer' }}>キャンセル</button>
+              </div>
+            </Card>
+          )}
+
+          {catTotals.length > 0 && (
+            <Card>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, marginBottom: 14 }}>カテゴリ別</div>
+              {catTotals.map(c => (
+                <div key={c.id} style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <span style={{ fontSize: 13, color: C.text }}>{c.emoji} {c.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFeatureSettings: tnum }}>¥{fmt(c.amt)}</span>
+                  </div>
+                  <div style={{ height: 6, background: C.bg, borderRadius: 3 }}>
+                    <div style={{ height: '100%', background: c.color, borderRadius: 3, width: `${total > 0 ? Math.round(c.amt/total*100) : 0}%` }} />
+                  </div>
+                </div>
+              ))}
+            </Card>
+          )}
+        </div>
+
+        {/* Right: Expense list */}
+        <Card>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>経費一覧</div>
+            <select value={filter} onChange={e => setFilter(e.target.value)} style={{ fontSize: 12, padding: '6px 10px', border: `1.5px solid ${C.border}`, borderRadius: 8, background: 'white', color: C.text }}>
+              <option value="all">すべて</option>
+              {BIZ_CATS.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+            </select>
+          </div>
+          {filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 0', color: C.textFaint, fontSize: 13, lineHeight: 2 }}>
+              経費がまだありません<br/>「経費を追加」から入力してください
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {filtered.map(e => {
+                const cat = BIZ_CATS.find(c => c.id === e.cat) || BIZ_CATS[7];
+                return (
+                  <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: C.bg, borderRadius: 14 }}>
+                    <div style={{ width: 36, height: 36, background: cat.color, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{cat.emoji}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{e.memo || cat.name}</div>
+                      <div style={{ fontSize: 11, color: C.textMuted }}>{e.date} · {cat.name}</div>
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text, fontFeatureSettings: tnum, flexShrink: 0 }}>¥{fmt(e.amount)}</div>
+                    <button onClick={() => remove(e.id)} style={{ width: 28, height: 28, borderRadius: 8, background: '#FEE2E2', color: '#DC2626', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', cursor: 'pointer' }}>×</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
+    </Shell>
   );
 }
 
@@ -820,6 +952,7 @@ function App() {
 
   switch (screen) {
     case 'input':    return <InputScreen    go={go} />;
+    case 'business': return <BusinessScreen go={go} />;
     case 'budget':   return <BudgetScreen   go={go} />;
     case 'tax':      return <TaxScreen      go={go} />;
     case 'report':   return <ReportScreen   go={go} />;
