@@ -293,7 +293,6 @@ function LoginScreen({ onSkip }) {
 function UserTypeScreen({ onSelect }) {
   const [sel, setSel] = useState(null);
   const types = [
-    { id: 'creator',   emoji: '🎨', title: 'クリエイター',   desc: 'ハンドメイド・デザイン・アートなど創作で収入を得ている' },
     { id: 'freelance', emoji: '💼', title: 'フリーランス',   desc: '個人事業主・フリーランスとして活動中' },
     { id: 'hybrid',    emoji: '⚡', title: '会社員 + 副業',  desc: '給与と副収入の両方がある' },
     { id: 'employee',  emoji: '🏢', title: '会社員',         desc: '会社に勤めて給与をもらっている' },
@@ -2439,7 +2438,6 @@ function SettingsScreen({ go, user, onLogout }) {
   const [taxInput, setTaxInput] = useState('');
   const [toast, setToast] = useState('');
   const USER_TYPES = [
-    { id: 'creator',  label: 'クリエイター', emoji: '🎨' },
     { id: 'freelance',label: 'フリーランス',  emoji: '💼' },
     { id: 'hybrid',   label: '会社員＋副業',  emoji: '⚡' },
     { id: 'employee', label: '会社員',        emoji: '🏢' },
