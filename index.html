@@ -161,12 +161,10 @@ function LoginScreen({ onLogin, onSkip }) {
   return (
     <Screen bg="linear-gradient(160deg, #EFF8F5 0%, #D4E8E3 55%, #D4E8E3 100%)">
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 40px' }}>
-        <div style={{ width: 84, height: 84, borderRadius: 26, overflow: 'hidden', marginBottom: 28, boxShadow: '0 14px 36px rgba(9,125,96,0.3), 0 4px 12px rgba(9,125,96,0.15)' }}>
-          <img src="logo.png" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        </div>
+        <img src="logo.png" alt="logo" style={{ width: 88, height: 88, borderRadius: 22, display: 'block', marginBottom: 28, filter: 'drop-shadow(0 10px 28px rgba(9,125,96,0.25))' }} />
         <div style={{ fontSize: 28, fontWeight: 700, color: C.text, letterSpacing: '-0.6px', marginBottom: 10, textAlign: 'center' }}>自由人家計簿</div>
-        <div style={{ fontSize: 15, color: C.textMed, textAlign: 'center', lineHeight: 1.75, marginBottom: 6 }}>お金の判断を、もっとシンプルに。</div>
-        <div style={{ fontSize: 12, color: C.textMuted, textAlign: 'center', lineHeight: 1.7 }}>フリーランス・個人事業主のための<br/>家計管理アプリ</div>
+        <div style={{ fontSize: 15, color: C.textMed, textAlign: 'center', lineHeight: 1.75, marginBottom: 6 }}>自由になるために、</div>
+        <div style={{ fontSize: 15, color: C.textMed, textAlign: 'center', lineHeight: 1.75 }}>まず家計管理から。</div>
       </div>
 
       <div style={{ padding: '0 28px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
