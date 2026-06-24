@@ -378,6 +378,7 @@ function BusinessScreen({ go }) {
 
 // ── HOME (dashboard) ────────────────────────────────────────────────────────
 function HomeScreen({ go }) {
+  const [mode, setMode] = useState('life');
   const s = Store.get('settings', {});
   const userType = s.userType || 'freelance';
   const income = (s.salary || 0) + (s.sideIncome || 0) + (s.income || 0);
@@ -386,128 +387,241 @@ function HomeScreen({ go }) {
   const savingsGoal = s.savingsGoal || 0;
   const today = new Date();
   const daysLeft = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() - today.getDate();
-  const usable = Math.max(0, income - taxAmt - savingsGoal - Store.get('fixedExpenses',[]).filter(i=>i.active).reduce((s,i)=>s+i.amount,0));
+  const fixedTotal = Store.get('fixedExpenses',[]).filter(i=>i.active).reduce((s,i)=>s+i.amount,0);
+  const usable = Math.max(0, income - taxAmt - savingsGoal - fixedTotal);
   const dailyBudget = daysLeft > 0 ? Math.round(usable / daysLeft) : 0;
-  const bizLabel = userType === 'employee' ? '特別支出' : '事業費';
+  const monthLabel = `${today.getMonth()+1}月`;
+  const dateLabel = `${today.getFullYear()}年${today.getMonth()+1}月 · ${today.getDate()}日現在`;
+
   const mTxns = getThisMonthTxns();
+  const allTxns = Store.get('transactions', []);
   const lifeSpent = sumDiv(mTxns, '生活費');
-  const bizSpent = sumDiv(mTxns, '事業費');
-  const breakdown = [
-    { name: '生活費',  amt: lifeSpent, pct: income > 0 ? Math.round(lifeSpent/income*100) : 0, color: C.info,    note: `¥${fmt(lifeSpent)} 支出`, noteColor: C.textMuted },
-    { name: bizLabel,  amt: bizSpent,  pct: income > 0 ? Math.round(bizSpent/income*100) : 0,  color: C.primary, note: `¥${fmt(bizSpent)} 支出`,  noteColor: C.textMuted },
-    { name: '税金積立', amt: taxAmt, pct: income > 0 ? Math.round(taxAmt/income*100) : 0, color: C.warning, note: `${taxRate}% 積立`, noteColor: C.textMuted },
-    { name: userType === 'freelance' ? '投資' : '貯蓄', amt: savingsGoal, pct: income > 0 ? Math.round(savingsGoal/income*100) : 0, color: C.invest, note: '', noteColor: C.textMuted },
-  ];
-  const stat = (label, value, sub, color, labelColor) => (
-    <Card hover style={{ flex: 1 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: labelColor || C.textMuted, marginBottom: 10 }}>{label}</div>
-      <div style={{ fontSize: 30, fontWeight: 700, color, letterSpacing: '-1.2px', fontFeatureSettings: tnum }}>{value}</div>
-      <div style={{ fontSize: 12, color: C.textMuted, marginTop: 5 }}>{sub}</div>
+  const bizSpent  = sumDiv(mTxns, '事業費');
+  const bizIncome = mTxns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount, 0);
+  const totalSpent = mTxns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount, 0);
+  const lifeRemaining = Math.max(0, usable - totalSpent);
+  const bizProfit = bizIncome - bizSpent;
+  const expenseRate = bizIncome > 0 ? Math.round(bizSpent/bizIncome*100) : 0;
+  const profitRate  = bizIncome > 0 ? Math.round(bizProfit/bizIncome*100) : 0;
+
+  const CAT_COLORS_ARR = [C.info, C.primary, '#f59e0b', '#8b5cf6', '#06b6d4'];
+  const byCatEntries = (div) => {
+    const obj = {};
+    mTxns.filter(t=>t.type==='expense'&&t.division===div).forEach(t=>{ obj[t.category]=(obj[t.category]||0)+t.amount; });
+    return Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  };
+  const lifeCats = byCatEntries('生活費');
+  const bizCats  = byCatEntries('事業費');
+
+  const StatCard = ({label, value, sub, color, labelColor}) => (
+    <Card hover style={{ flex:1 }}>
+      <div style={{ fontSize:12, fontWeight:600, color:labelColor||C.textMuted, marginBottom:10 }}>{label}</div>
+      <div style={{ fontSize:30, fontWeight:700, color, letterSpacing:'-1.2px', fontFeatureSettings:tnum }}>{value}</div>
+      <div style={{ fontSize:12, color:C.textMuted, marginTop:5 }}>{sub}</div>
     </Card>
   );
 
-  return (
-    <Shell active="home" go={go} title="6月の家計" subtitle="2026年6月 · 23日現在" actions={<><MonthPill /><AddButton go={go} /></>}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1.55fr 1fr', gap: 20, alignItems: 'start' }}>
-        {/* Hero */}
-        <div style={{ background: 'linear-gradient(135deg, #333149 0%, #1D1C2E 100%)', borderRadius: 22, padding: 30, position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', right: -36, top: -36, width: 160, height: 160, background: 'rgba(255,255,255,0.06)', borderRadius: '50%' }} />
-          <div style={{ position: 'absolute', right: 40, bottom: -28, width: 110, height: 110, background: 'rgba(255,255,255,0.04)', borderRadius: '50%' }} />
-          <div style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.72)', marginBottom: 6 }}>今日から使えるお金</div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 64, fontWeight: 700, color: 'white', letterSpacing: '-3px', fontFeatureSettings: tnum, lineHeight: 1 }}>¥{fmt(dailyBudget)}</span>
-            <span style={{ fontSize: 20, color: 'rgba(255,255,255,0.72)', fontWeight: 500 }}>/日</span>
+  const TabSwitch = () => (
+    <div style={{ display:'flex', background:'rgba(0,0,0,0.06)', borderRadius:14, padding:4, marginBottom:20, width:320 }}>
+      {[['life','🏠 日常生活'],['biz','💼 事業']].map(([key,label]) => (
+        <button key={key} onClick={() => setMode(key)} style={{
+          flex:1, padding:'10px 16px', borderRadius:10, fontSize:14, fontWeight:700,
+          border:'none', cursor:'pointer', transition:'all .15s',
+          background: mode===key ? 'white' : 'transparent',
+          color: mode===key ? C.text : C.textMuted,
+          boxShadow: mode===key ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
+        }}>{label}</button>
+      ))}
+    </div>
+  );
+
+  // ── 日常生活 view ──────────────────────────────────────────────────────────
+  if (mode === 'life') {
+    const bdg = Store.get('budgets', {});
+    const lifeBudget = bdg['生活費'] || 0;
+    const taxGoal = Math.round(income * taxRate / 100);
+    const taxSaved = sumDiv(mTxns, '税金');
+    const tips = [];
+    if (mTxns.length === 0) {
+      tips.push('まだ今月の記録がありません。支出・収入を入力して家計を管理しましょう。');
+    } else {
+      if (lifeBudget > 0) {
+        const p = Math.round(lifeSpent/lifeBudget*100);
+        if (p >= 90) tips.push(`生活費が予算の${p}%に達しています。残り¥${fmt(Math.max(0,lifeBudget-lifeSpent))}で過ごしましょう。`);
+        else if (p <= 60) tips.push(`生活費は予算の${p}%と安全圏です。このペースをキープ！`);
+        else tips.push(`生活費は予算の${p}%を使用中。`);
+      }
+      if (taxGoal > 0) {
+        const p = Math.round(taxSaved/taxGoal*100);
+        if (p >= 100) tips.push('今月の税金積立目標を達成しました！');
+        else if (p < 50 && daysLeft <= 15) tips.push(`税金積立が目標の${p}%です。月末まで¥${fmt(taxGoal-taxSaved)}の積立が必要です。`);
+      }
+      if (income > 0 && usable > 0) {
+        const sp = Math.round(totalSpent/usable*100);
+        if (sp > 85 && daysLeft > 5) tips.push(`使用可能額の${sp}%を消費しました。残り${daysLeft}日間は支出を抑えましょう。`);
+      }
+      if (tips.length === 0) {
+        tips.push('家計は順調です！このペースをキープしましょう。');
+        if (daysLeft <= 7) tips.push(`月末まであと${daysLeft}日。最後まで丁寧に記録していきましょう。`);
+      }
+    }
+    const isGood = tips.every(t => !t.includes('達しています') && !t.includes('必要'));
+    const accent = isGood ? C.primary : C.warning;
+    const alertBg = isGood ? C.primaryLight : C.warningBg;
+
+    return (
+      <Shell active="home" go={go} title={`${monthLabel}の家計`} subtitle={dateLabel} actions={<><MonthPill /><AddButton go={go} /></>}>
+        <TabSwitch />
+        <div style={{ display:'grid', gridTemplateColumns:'1.55fr 1fr', gap:20, alignItems:'start' }}>
+          <div style={{ background:'linear-gradient(135deg, #333149 0%, #1D1C2E 100%)', borderRadius:22, padding:30, position:'relative', overflow:'hidden' }}>
+            <div style={{ position:'absolute', right:-36, top:-36, width:160, height:160, background:'rgba(255,255,255,0.06)', borderRadius:'50%' }} />
+            <div style={{ fontSize:13, fontWeight:500, color:'rgba(255,255,255,0.72)', marginBottom:6 }}>今日から使えるお金</div>
+            <div style={{ display:'flex', alignItems:'baseline', gap:8, marginBottom:8 }}>
+              <span style={{ fontSize:64, fontWeight:700, color:'white', letterSpacing:'-3px', fontFeatureSettings:tnum, lineHeight:1 }}>¥{fmt(dailyBudget)}</span>
+              <span style={{ fontSize:20, color:'rgba(255,255,255,0.72)', fontWeight:500 }}>/日</span>
+            </div>
+            <div style={{ fontSize:13, color:'rgba(255,255,255,0.6)', marginBottom:22 }}>月末まであと{daysLeft}日　·　残り予測 ¥{fmt(lifeRemaining)}</div>
+            <div style={{ background:'rgba(255,255,255,0.18)', borderRadius:4, height:6, marginBottom:7 }}>
+              <div style={{ background:'rgba(255,255,255,0.85)', width:`${usable>0?Math.min(100,Math.round(totalSpent/usable*100)):0}%`, height:'100%', borderRadius:4 }} />
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'rgba(255,255,255,0.5)' }}>
+              <span>{monthLabel}初</span><span>今日（{today.getDate()}日）</span><span>{monthLabel}末</span>
+            </div>
           </div>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 22 }}>月末まであと{daysLeft}日　·　残り予測 ¥{fmt(usable)}</div>
-          <div style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 4, height: 6, marginBottom: 7 }}>
-            <div style={{ background: 'rgba(255,255,255,0.85)', width: '77%', height: '100%', borderRadius: 4 }} />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
-            <span>6/1</span><span>今日（23日）</span><span>6/30</span>
+          <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+            <StatCard label="今月の収入" value={`¥${fmt(income)}`} sub="合計" color={C.text} />
+            <StatCard label="月末残り予測" value={`¥${fmt(lifeRemaining)}`} sub="税・固定費除く" color={C.warning} labelColor={C.warning} />
           </div>
         </div>
-        {/* Stat column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {stat('確定収入', `¥${fmt(income)}`, '今月の合計', C.text)}
-          {stat('月末残り予測', `¥${fmt(usable)}`, '税・固定費を除く', C.warning, C.warning)}
+
+        <div style={{ display:'grid', gridTemplateColumns:'1.55fr 1fr', gap:20, marginTop:20, alignItems:'start' }}>
+          <Card>
+            <SectionTitle right={<span style={{ fontSize:15, fontWeight:700, color:C.textMed, fontFeatureSettings:tnum }}>¥{fmt(lifeSpent)}</span>}>生活費カテゴリ</SectionTitle>
+            {lifeCats.length === 0 ? (
+              <div style={{ textAlign:'center', padding:'24px 0', color:C.textFaint, fontSize:13 }}>まだ生活費の記録がありません</div>
+            ) : lifeCats.map(([cat, amt], i) => (
+              <div key={cat} style={{ marginBottom:i<lifeCats.length-1?18:0 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                  <div style={{ display:'flex', gap:9, alignItems:'center' }}>
+                    <span style={{ fontSize:16 }}>{CAT_EMOJI[cat]||'📋'}</span>
+                    <span style={{ fontSize:14, color:C.textMed, fontWeight:500 }}>{cat}</span>
+                  </div>
+                  <span style={{ fontSize:14, fontWeight:600, color:C.text, fontFeatureSettings:tnum }}>¥{fmt(amt)}</span>
+                </div>
+                <Bar pct={lifeSpent>0?Math.round(amt/lifeSpent*100):0} color={CAT_COLORS_ARR[i%CAT_COLORS_ARR.length]} />
+              </div>
+            ))}
+          </Card>
+          <div style={{ background:alertBg, borderRadius:20, padding:24, borderLeft:`4px solid ${accent}` }}>
+            <div style={{ fontSize:13, fontWeight:700, color:accent, marginBottom:12, display:'flex', alignItems:'center', gap:7 }}>
+              <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M7 1L13 12H1L7 1Z" stroke={accent} strokeWidth="1.4" fill="none" strokeLinejoin="round"/><path d="M7 5V8M7 10V10.5" stroke={accent} strokeWidth="1.4" strokeLinecap="round"/></svg>
+              今月のポイント
+            </div>
+            <div style={{ fontSize:13, color:C.textMed, lineHeight:2 }}>
+              {tips.map((t, i) => <div key={i}>{t}</div>)}
+            </div>
+          </div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ── 事業 view ──────────────────────────────────────────────────────────────
+  const bdg = Store.get('budgets', {});
+  const bizBudget = bdg['事業費'] || 0;
+  const recentBiz = allTxns.filter(t => t.division === '事業費' || t.type === 'income').slice(0, 6);
+  const bizTips = [];
+  if (mTxns.length === 0) {
+    bizTips.push('まだ今月の記録がありません。売上・経費を入力しましょう。');
+  } else {
+    if (bizIncome === 0) bizTips.push('今月の売上がまだ入力されていません。');
+    else if (expenseRate > 70) bizTips.push(`経費率が${expenseRate}%と高めです。各経費を見直してみましょう。`);
+    else if (profitRate >= 70) bizTips.push(`経費率${expenseRate}%で利益率${profitRate}%！良い数字です。`);
+    else bizTips.push(`今月の利益率は${profitRate}%。経費率${expenseRate}%で推移中。`);
+    if (bizBudget > 0) {
+      const p = Math.round(bizSpent/bizBudget*100);
+      if (p >= 90) bizTips.push(`事業費が予算の${p}%に達しています。`);
+    }
+    if (bizTips.length === 1) bizTips.push('領収書の記録は確定申告の際に役立ちます。こまめに入力しましょう。');
+  }
+  const bizIsGood = bizTips.every(t => !t.includes('高め') && !t.includes('達してい'));
+
+  return (
+    <Shell active="home" go={go} title={`${monthLabel}の事業`} subtitle={dateLabel} actions={<><MonthPill /><AddButton go={go} /></>}>
+      <TabSwitch />
+      <div style={{ display:'grid', gridTemplateColumns:'1.55fr 1fr', gap:20, alignItems:'start' }}>
+        <div style={{ background:'linear-gradient(135deg, #0d6e55 0%, #064d3c 100%)', borderRadius:22, padding:30, position:'relative', overflow:'hidden' }}>
+          <div style={{ position:'absolute', right:-36, top:-36, width:160, height:160, background:'rgba(255,255,255,0.06)', borderRadius:'50%' }} />
+          <div style={{ fontSize:13, fontWeight:500, color:'rgba(255,255,255,0.72)', marginBottom:6 }}>今月の売上</div>
+          <div style={{ display:'flex', alignItems:'baseline', gap:8, marginBottom:8 }}>
+            <span style={{ fontSize:64, fontWeight:700, color:'white', letterSpacing:'-3px', fontFeatureSettings:tnum, lineHeight:1 }}>¥{fmt(bizIncome)}</span>
+          </div>
+          <div style={{ fontSize:13, color:'rgba(255,255,255,0.6)', marginBottom:22 }}>
+            経費 ¥{fmt(bizSpent)}　·　{bizProfit>=0?'利益':'赤字'} ¥{fmt(Math.abs(bizProfit))}
+          </div>
+          <div style={{ display:'flex', gap:10 }}>
+            {[['経費率',`${expenseRate}%`],['利益率',`${profitRate}%`],['残り',`${daysLeft}日`]].map(([l,v])=>(
+              <div key={l} style={{ flex:1, background:'rgba(255,255,255,0.15)', borderRadius:10, padding:'10px 12px' }}>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,0.6)', marginBottom:2 }}>{l}</div>
+                <div style={{ fontSize:19, fontWeight:700, color:'white' }}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+          <StatCard label="事業経費" value={`¥${fmt(bizSpent)}`} sub="今月の合計" color={C.text} />
+          <StatCard label="純利益" value={`¥${fmt(Math.abs(bizProfit))}`} sub={bizProfit>=0?'黒字':'赤字'} color={bizProfit>=0?C.primary:C.warning} labelColor={bizProfit>=0?C.primary:C.warning} />
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.55fr 1fr', gap: 20, marginTop: 20, alignItems: 'start' }}>
-        {/* Breakdown */}
+      <div style={{ display:'grid', gridTemplateColumns:'1.55fr 1fr', gap:20, marginTop:20, alignItems:'start' }}>
         <Card>
-          <SectionTitle right={<span style={{ fontSize: 15, fontWeight: 700, color: C.textMed, fontFeatureSettings: tnum }}>¥{fmt(breakdown.reduce((s,i)=>s+i.amt,0))}</span>}>支出内訳</SectionTitle>
-          {breakdown.map((item, i) => (
-            <div key={item.name} style={{ marginBottom: i < breakdown.length - 1 ? 18 : 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div style={{ display: 'flex', gap: 9, alignItems: 'center' }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 3, background: item.color }} />
-                  <span style={{ fontSize: 14, color: C.textMed, fontWeight: 500 }}>{item.name}</span>
+          <SectionTitle right={<span style={{ fontSize:15, fontWeight:700, color:C.textMed, fontFeatureSettings:tnum }}>¥{fmt(bizSpent)}</span>}>事業経費カテゴリ</SectionTitle>
+          {bizCats.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'32px 0', color:C.textFaint }}>
+              <div style={{ fontSize:28, marginBottom:8 }}>💼</div>
+              <div style={{ fontSize:13 }}>事業経費がまだありません</div>
+            </div>
+          ) : bizCats.map(([cat, amt], i) => (
+            <div key={cat} style={{ marginBottom:i<bizCats.length-1?18:0 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                <div style={{ display:'flex', gap:9, alignItems:'center' }}>
+                  <span style={{ fontSize:16 }}>{CAT_EMOJI[cat]||'📋'}</span>
+                  <span style={{ fontSize:14, color:C.textMed, fontWeight:500 }}>{cat}</span>
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 600, color: C.text, fontFeatureSettings: tnum }}>¥{fmt(item.amt)}</span>
+                <span style={{ fontSize:14, fontWeight:600, color:C.text, fontFeatureSettings:tnum }}>¥{fmt(amt)}</span>
               </div>
-              <Bar pct={item.pct} color={item.color} />
-              {item.note && <div style={{ textAlign: 'right', fontSize: 11, color: item.noteColor, marginTop: 4 }}>{item.note}</div>}
+              <Bar pct={bizSpent>0?Math.round(amt/bizSpent*100):0} color={CAT_COLORS_ARR[i%CAT_COLORS_ARR.length]} />
             </div>
           ))}
         </Card>
-        {/* Alert — dynamic */}
-        {(() => {
-          const mTxns = getThisMonthTxns();
-          const bdg = Store.get('budgets', {});
-          const today = new Date();
-          const daysLeft = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate() - today.getDate();
-          const lifeUsed = sumDiv(mTxns, '生活費');
-          const bizUsed  = sumDiv(mTxns, '事業費');
-          const taxSaved = sumDiv(mTxns, '税金');
-          const lifeBudget = bdg['生活費'] || 0;
-          const bizBudget  = bdg['事業費'] || 0;
-          const taxGoal = Math.round(income * taxRate / 100);
-          const totalExp = mTxns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount, 0);
-          const tips = [];
-          if (mTxns.length === 0) {
-            tips.push('まだ今月の記録がありません。支出・収入を入力して家計を管理しましょう。');
-          } else {
-            if (bizBudget > 0) {
-              const p = Math.round(bizUsed/bizBudget*100);
-              if (p >= 90) tips.push(`${bizLabel}が予算の${p}%に達しています。残り¥${fmt(Math.max(0,bizBudget-bizUsed))}で月末まで乗り越えましょう。`);
-              else if (p >= 75) tips.push(`${bizLabel}が予算の${p}%を使用中。あと¥${fmt(bizBudget-bizUsed)}残っています。`);
-              else tips.push(`${bizLabel}は予算の${p}%と良いペースです。`);
-            }
-            if (lifeBudget > 0) {
-              const p = Math.round(lifeUsed/lifeBudget*100);
-              if (p >= 90) tips.push(`生活費が予算の${p}%に達しています。残り¥${fmt(Math.max(0,lifeBudget-lifeUsed))}で過ごしましょう。`);
-              else if (p <= 60) tips.push(`生活費は予算の${p}%と安全圏です。このペースをキープしましょう！`);
-            }
-            if (taxGoal > 0) {
-              const p = Math.round(taxSaved/taxGoal*100);
-              if (p >= 100) tips.push('今月の税金積立目標を達成しました！');
-              else if (p < 50 && daysLeft <= 15) tips.push(`税金積立が目標の${p}%です。月末まで¥${fmt(taxGoal-taxSaved)}の積立が必要です。`);
-            }
-            if (income > 0 && usable > 0) {
-              const sp = Math.round(totalExp/usable*100);
-              if (sp > 85 && daysLeft > 5) tips.push(`使用可能額の${sp}%を消費しました。残り${daysLeft}日間は支出を抑えましょう。`);
-            }
-            if (tips.length === 0) {
-              tips.push('家計は順調です！このペースをキープしましょう。');
-              if (daysLeft <= 7) tips.push(`月末まであと${daysLeft}日。最後まで丁寧に記録していきましょう。`);
-            }
-          }
-          const isGood = tips.every(t => !t.includes('達しています') && !t.includes('必要'));
-          const accentColor = isGood ? C.primary : C.warning;
-          const bg = isGood ? C.primaryLight : C.warningBg;
-          return (
-            <div style={{ background: bg, borderRadius: 20, padding: 24, borderLeft: `4px solid ${accentColor}` }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: accentColor, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
-                <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M7 1L13 12H1L7 1Z" stroke={accentColor} strokeWidth="1.4" fill="none" strokeLinejoin="round"/><path d="M7 5V8M7 10V10.5" stroke={accentColor} strokeWidth="1.4" strokeLinecap="round"/></svg>
-                今月のポイント
-              </div>
-              <div style={{ fontSize: 13, color: C.textMed, lineHeight: 2 }}>
-                {tips.map((t, i) => <div key={i}>{t}</div>)}
-              </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          <div style={{ background:bizIsGood?C.primaryLight:C.warningBg, borderRadius:20, padding:24, borderLeft:`4px solid ${bizIsGood?C.primary:C.warning}` }}>
+            <div style={{ fontSize:13, fontWeight:700, color:bizIsGood?C.primary:C.warning, marginBottom:12, display:'flex', alignItems:'center', gap:7 }}>
+              <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M7 1L13 12H1L7 1Z" stroke={bizIsGood?C.primary:C.warning} strokeWidth="1.4" fill="none" strokeLinejoin="round"/><path d="M7 5V8M7 10V10.5" stroke={bizIsGood?C.primary:C.warning} strokeWidth="1.4" strokeLinecap="round"/></svg>
+              事業のポイント
             </div>
-          );
-        })()}
+            <div style={{ fontSize:13, color:C.textMed, lineHeight:2 }}>
+              {bizTips.map((t,i)=><div key={i}>{t}</div>)}
+            </div>
+          </div>
+          <Card>
+            <SectionTitle>最近の事業記録</SectionTitle>
+            {recentBiz.length === 0 ? (
+              <div style={{ textAlign:'center', padding:'16px 0', color:C.textFaint, fontSize:13 }}>記録がありません</div>
+            ) : recentBiz.map(r => (
+              <div key={r.id} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+                <span style={{ fontSize:18 }}>{r.type==='income'?'💰':(CAT_EMOJI[r.category]||'📋')}</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:C.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{r.memo||r.source||r.category}</div>
+                  <div style={{ fontSize:11, color:C.textMuted }}>{r.date}</div>
+                  {r.payment && <div style={{ marginTop:2 }}><CardBadge name={r.payment} /></div>}
+                </div>
+                <div style={{ fontSize:13, fontWeight:700, color:r.type==='income'?C.primary:C.text, fontFeatureSettings:tnum, whiteSpace:'nowrap' }}>{r.type==='income'?'+':'-'}¥{fmt(r.amount)}</div>
+              </div>
+            ))}
+          </Card>
+        </div>
       </div>
     </Shell>
   );
