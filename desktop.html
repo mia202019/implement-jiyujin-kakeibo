@@ -1854,6 +1854,8 @@ function FixedExpensesScreen({ go }) {
   const [items, setItems] = useState(() => Store.get('fixedExpenses', []));
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', amount: '', cat: 'rent', payment: 'カード', cycle: 'monthly', day: '毎月1日', month: thisMonth, division: '生活費' });
+  const [editId, setEditId] = useState(null);
+  const [editForm, setEditForm] = useState({});
 
   const [regSet, setRegSet] = useState(() => new Set(
     Store.get('transactions',[]).filter(t=>t.source==='fixed'&&t.date&&t.date.startsWith(thisMonthStr())).map(t=>t.fixedId)
@@ -1871,6 +1873,17 @@ function FixedExpensesScreen({ go }) {
   };
   const toggle = id => { const n = items.map(i => i.id === id ? {...i, active: !i.active} : i); setItems(n); Store.set('fixedExpenses', n); };
   const remove = id => { const n = items.filter(i => i.id !== id); setItems(n); Store.set('fixedExpenses', n); };
+  const startEdit = item => {
+    setEditId(item.id);
+    setEditForm({ name: item.name, amount: String(item.amount), cat: item.cat || 'other', payment: item.payment || 'カード', cycle: item.cycle || 'monthly', day: item.day || '毎月1日', month: item.month || thisMonth, division: item.division || '生活費' });
+    setShowForm(false);
+  };
+  const saveEdit = () => {
+    if (!editForm.name || !editForm.amount) return;
+    const next = items.map(i => i.id === editId ? { ...i, ...editForm, amount: Number(editForm.amount) } : i);
+    setItems(next); Store.set('fixedExpenses', next);
+    setEditId(null);
+  };
 
   const unregistered = items.filter(i => {
     if (!i.active) return false;
@@ -2033,24 +2046,97 @@ function FixedExpensesScreen({ go }) {
               {items.map(item => {
                 const cat = FIXED_CATS.find(c => c.id === item.cat) || FIXED_CATS[5];
                 const registered = regSet.has(item.id);
+                const isEditing = editId === item.id;
                 return (
-                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: item.active ? C.bg : '#F5F5F5', borderRadius: 14, opacity: item.active ? 1 : 0.6 }}>
-                    <div style={{ width: 38, height: 38, background: item.active ? cat.color : '#CCC', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>{cat.emoji}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{item.name}</div>
-                      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
-                        {cat.name} · {item.cycle === 'yearly' ? `年1回（${item.month}月）` : item.day} · {item.payment}
+                  <React.Fragment key={item.id}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: isEditing ? C.primaryLight : (item.active ? C.bg : '#F5F5F5'), borderRadius: 14, opacity: item.active ? 1 : 0.6 }}>
+                      <div style={{ width: 38, height: 38, background: item.active ? cat.color : '#CCC', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>{cat.emoji}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{item.name}</div>
+                        <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
+                          {cat.name} · {item.cycle === 'yearly' ? `年1回（${item.month}月）` : item.day} · {item.payment}
+                        </div>
                       </div>
+                      {item.division === '事業費' && <span style={{ fontSize: 10, fontWeight: 700, color: C.primary, background: C.primaryLight, borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>事業費</span>}
+                      {item.cycle === 'yearly' && <span style={{ fontSize: 10, fontWeight: 700, color: C.invest, background: C.invest+'18', borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>年払</span>}
+                      {item.active && registered && <span style={{ fontSize: 10, fontWeight: 700, color: C.primary, background: C.primaryLight, borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>今月登録済</span>}
+                      <div style={{ fontSize: 16, fontWeight: 700, color: item.active ? C.text : C.textMuted, fontFeatureSettings: tnum, flexShrink: 0 }}>¥{fmt(item.amount)}</div>
+                      <button onClick={() => isEditing ? setEditId(null) : startEdit(item)} style={{ width: 32, height: 32, borderRadius: 8, background: isEditing ? C.primary : '#E8F5F1', color: isEditing ? 'white' : C.primary, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', cursor: 'pointer' }}>✏</button>
+                      <button onClick={() => toggle(item.id)} style={{ width: 42, height: 24, borderRadius: 12, background: item.active ? C.primary : C.border, position: 'relative', flexShrink: 0, border: 'none', cursor: 'pointer', transition: 'background .2s' }}>
+                        <div style={{ width: 18, height: 18, background: 'white', borderRadius: '50%', position: 'absolute', top: 3, left: item.active ? 21 : 3, transition: 'left .2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+                      </button>
+                      <button onClick={() => remove(item.id)} style={{ width: 30, height: 30, borderRadius: 8, background: '#FEE2E2', color: '#DC2626', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', cursor: 'pointer' }}>×</button>
                     </div>
-                    {item.division === '事業費' && <span style={{ fontSize: 10, fontWeight: 700, color: C.primary, background: C.primaryLight, borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>事業費</span>}
-                    {item.cycle === 'yearly' && <span style={{ fontSize: 10, fontWeight: 700, color: C.invest, background: C.invest+'18', borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>年払</span>}
-                    {item.active && registered && <span style={{ fontSize: 10, fontWeight: 700, color: C.primary, background: C.primaryLight, borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>今月登録済</span>}
-                    <div style={{ fontSize: 16, fontWeight: 700, color: item.active ? C.text : C.textMuted, fontFeatureSettings: tnum, flexShrink: 0 }}>¥{fmt(item.amount)}</div>
-                    <button onClick={() => toggle(item.id)} style={{ width: 42, height: 24, borderRadius: 12, background: item.active ? C.primary : C.border, position: 'relative', flexShrink: 0, border: 'none', cursor: 'pointer', transition: 'background .2s' }}>
-                      <div style={{ width: 18, height: 18, background: 'white', borderRadius: '50%', position: 'absolute', top: 3, left: item.active ? 21 : 3, transition: 'left .2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
-                    </button>
-                    <button onClick={() => remove(item.id)} style={{ width: 30, height: 30, borderRadius: 8, background: '#FEE2E2', color: '#DC2626', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', cursor: 'pointer' }}>×</button>
-                  </div>
+                    {isEditing && (
+                      <div style={{ background: 'white', borderRadius: 12, padding: 16, border: `1.5px solid ${C.primary}`, marginTop: -4 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 12 }}>編集</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div>
+                              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontWeight: 600 }}>名称</div>
+                              <input value={editForm.name} onChange={e => setEditForm(f=>({...f, name:e.target.value}))} style={inputStyle} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontWeight: 600 }}>金額</div>
+                              <input type="number" value={editForm.amount} onChange={e => setEditForm(f=>({...f, amount:e.target.value}))} style={{ ...inputStyle, fontSize: 20, fontWeight: 700 }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontWeight: 600 }}>用途区分</div>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                {['生活費','事業費'].map(d => (
+                                  <button key={d} onClick={() => setEditForm(f=>({...f, division:d}))} style={{ flex:1, background: editForm.division===d ? C.primary : C.bg, color: editForm.division===d ? 'white' : C.text, borderRadius:8, padding:'8px', fontSize:12, fontWeight:700, border:'none', cursor:'pointer' }}>{d}</button>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontWeight: 600 }}>支払いサイクル</div>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                {[['monthly','毎月'],['yearly','年1回']].map(([v,l]) => (
+                                  <button key={v} onClick={() => setEditForm(f=>({...f, cycle:v}))} style={{ flex:1, background: editForm.cycle===v ? C.primary : C.bg, color: editForm.cycle===v ? 'white' : C.text, borderRadius:8, padding:'8px', fontSize:12, fontWeight:700, border:'none', cursor:'pointer' }}>{l}</button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div>
+                              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontWeight: 600 }}>カテゴリ</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+                                {FIXED_CATS.map(c => (
+                                  <button key={c.id} onClick={() => setEditForm(f=>({...f, cat:c.id}))} style={{ background: editForm.cat===c.id ? c.color : C.bg, color: editForm.cat===c.id ? 'white' : C.text, borderRadius: 8, padding: '7px 6px', fontSize: 11, fontWeight: editForm.cat===c.id ? 700 : 400, display: 'flex', alignItems: 'center', gap: 5, border: 'none', cursor: 'pointer' }}>
+                                    <span>{c.emoji}</span>{c.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                              <div>
+                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontWeight: 600 }}>{editForm.cycle==='yearly' ? '支払い月' : '引き落とし日'}</div>
+                                {editForm.cycle === 'yearly' ? (
+                                  <select value={editForm.month} onChange={e => setEditForm(f=>({...f, month:e.target.value}))} style={{ ...inputStyle, fontSize: 13 }}>
+                                    {Array.from({length:12},(_,i)=>`${i+1}`).map(m => <option key={m} value={m}>{m}月</option>)}
+                                  </select>
+                                ) : (
+                                  <select value={editForm.day} onChange={e => setEditForm(f=>({...f, day:e.target.value}))} style={{ ...inputStyle, fontSize: 13 }}>
+                                    {[...Array.from({length:31},(_,i)=>`毎月${i+1}日`), '毎月末日'].map(d => <option key={d}>{d}</option>)}
+                                  </select>
+                                )}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontWeight: 600 }}>支払い</div>
+                                <select value={editForm.payment} onChange={e => setEditForm(f=>({...f, payment:e.target.value}))} style={{ ...inputStyle, fontSize: 13 }}>
+                                  {getCards().map(c => <option key={c.id} value={c.name}>{c.name}{c.last4 ? ` (${c.last4})` : ''}</option>)}
+                                </select>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
+                              <button onClick={saveEdit} style={{ flex:1, background: C.primary, color:'white', borderRadius:10, padding:'11px', fontSize:13, fontWeight:700, border:'none', cursor:'pointer' }}>保存</button>
+                              <button onClick={() => setEditId(null)} style={{ flex:1, background: C.bg, color:C.textMuted, borderRadius:10, padding:'11px', fontSize:13, border:'none', cursor:'pointer' }}>キャンセル</button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </div>
