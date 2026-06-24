@@ -641,17 +641,63 @@ function HomeScreen({ go }) {
           );
         })()}
 
-        {/* Alert */}
-        <div style={{ margin: '0 16px 20px', background: C.warningBg, borderRadius: 18, padding: 18, borderLeft: `3px solid ${C.warning}` }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.warning, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L13 12H1L7 1Z" stroke={C.warning} strokeWidth="1.4" fill="none" strokeLinejoin="round"/><path d="M7 5V8M7 10V10.5" stroke={C.warning} strokeWidth="1.4" strokeLinecap="round"/></svg>
-            今月のポイント
-          </div>
-          <div style={{ fontSize: 12, color: C.textMed, lineHeight: 1.85 }}>
-            今月は事業費が高めです。材料費とイベント出店料で予算の86%を使っています。<br/>
-            生活費は安全圏です。ただし服・美容費はあと¥7,000以内がおすすめです。
-          </div>
-        </div>
+        {/* Alert — dynamic */}
+        {(() => {
+          const mTxns = getThisMonthTxns();
+          const bdg = Store.get('budgets', {});
+          const today = new Date();
+          const daysLeft = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate() - today.getDate();
+          const lifeUsed = sumDiv(mTxns, '生活費');
+          const bizUsed  = sumDiv(mTxns, '事業費');
+          const taxSaved = sumDiv(mTxns, '税金');
+          const lifeBudget = bdg['生活費'] || 0;
+          const bizBudget  = bdg['事業費'] || 0;
+          const taxGoal = Math.round(income * taxRate / 100);
+          const totalExp = mTxns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount, 0);
+          const tips = [];
+          if (mTxns.length === 0) {
+            tips.push('まだ今月の記録がありません。支出・収入を入力して家計を管理しましょう。');
+          } else {
+            if (bizBudget > 0) {
+              const p = Math.round(bizUsed/bizBudget*100);
+              if (p >= 90) tips.push(`${bizLabel}が予算の${p}%に達しています。残り¥${fmt(Math.max(0,bizBudget-bizUsed))}で月末まで過ごしましょう。`);
+              else if (p >= 75) tips.push(`${bizLabel}が予算の${p}%を使用中。あと¥${fmt(bizBudget-bizUsed)}残っています。`);
+              else tips.push(`${bizLabel}は予算の${p}%と良いペースです。`);
+            }
+            if (lifeBudget > 0) {
+              const p = Math.round(lifeUsed/lifeBudget*100);
+              if (p >= 90) tips.push(`生活費が予算の${p}%に達しています。残り¥${fmt(Math.max(0,lifeBudget-lifeUsed))}で過ごしましょう。`);
+              else if (p <= 60) tips.push(`生活費は予算の${p}%と安全圏です。このペースをキープ！`);
+            }
+            if (taxGoal > 0) {
+              const p = Math.round(taxSaved/taxGoal*100);
+              if (p >= 100) tips.push('今月の税金積立目標を達成しました！');
+              else if (p < 50 && daysLeft <= 15) tips.push(`税金積立が目標の${p}%です。月末まで¥${fmt(taxGoal-taxSaved)}が必要です。`);
+            }
+            if (income > 0 && usable > 0) {
+              const sp = Math.round(totalExp/usable*100);
+              if (sp > 85 && daysLeft > 5) tips.push(`使用可能額の${sp}%を消費。残り${daysLeft}日は支出を抑えましょう。`);
+            }
+            if (tips.length === 0) {
+              tips.push('家計は順調です！このペースをキープしましょう。');
+              if (daysLeft <= 7) tips.push(`月末まであと${daysLeft}日。最後まで記録していきましょう。`);
+            }
+          }
+          const isGood = tips.every(t => !t.includes('達しています') && !t.includes('必要'));
+          const accentColor = isGood ? C.primary : C.warning;
+          const bg = isGood ? C.primaryLight : C.warningBg;
+          return (
+            <div style={{ margin: '0 16px 20px', background: bg, borderRadius: 18, padding: 18, borderLeft: `3px solid ${accentColor}` }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: accentColor, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L13 12H1L7 1Z" stroke={accentColor} strokeWidth="1.4" fill="none" strokeLinejoin="round"/><path d="M7 5V8M7 10V10.5" stroke={accentColor} strokeWidth="1.4" strokeLinecap="round"/></svg>
+                今月のポイント
+              </div>
+              <div style={{ fontSize: 12, color: C.textMed, lineHeight: 1.85 }}>
+                {tips.map((t, i) => <div key={i} style={{ marginBottom: i < tips.length-1 ? 6 : 0 }}>{t}</div>)}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <BottomNav active="home" go={go} />
@@ -1099,9 +1145,15 @@ function BudgetScreen({ go }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: item.warn ? C.warning : C.text, fontFeatureSettings: "'tnum'" }}>¥{fmt(item.used)}</span>
                   {editKey === item.key ? (
-                    <input autoFocus type="number" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={() => commitEdit(item.key)} onKeyDown={e => e.key==='Enter' && commitEdit(item.key)} style={{ width: 80, fontSize: 12, padding: '4px 8px', border: `1.5px solid ${C.primary}`, borderRadius: 8, outline: 'none' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 11, color: C.textMuted }}>/</span>
+                      <input autoFocus type="number" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={() => commitEdit(item.key)} onKeyDown={e => e.key==='Enter' && commitEdit(item.key)} style={{ width: 84, fontSize: 12, padding: '5px 8px', border: `2px solid ${C.primary}`, borderRadius: 9, outline: 'none' }} />
+                    </div>
                   ) : (
-                    <button onClick={() => { setEditKey(item.key); setEditVal(String(item.budget)); }} style={{ fontSize: 11, color: C.textMuted, borderBottom: `1px dashed ${C.border}` }}>/ ¥{fmt(item.budget)}</button>
+                    <button onClick={() => { setEditKey(item.key); setEditVal(String(item.budget)); }} style={{ display: 'flex', alignItems: 'center', gap: 4, background: C.bg, borderRadius: 8, padding: '4px 8px', border: `1px solid ${C.border}` }}>
+                      <span style={{ fontSize: 11, color: C.textMuted, fontFeatureSettings: "'tnum'" }}>/ ¥{fmt(item.budget)}</span>
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5L10.5 3.5L3.5 10.5H1.5V8.5L8.5 1.5Z" stroke={C.textMuted} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </button>
                   )}
                 </div>
               </div>
