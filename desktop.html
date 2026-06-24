@@ -1374,6 +1374,10 @@ function ReportScreen({ go }) {
     { label:'貯蓄率', value:`${savingsRate}%`,  color: C.invest,  sub:'税引き前' },
   ];
 
+  const fixedItems = Store.get('fixedExpenses', []).filter(i => i.active);
+  const fixedTotal = fixedItems.reduce((s, i) => s + i.amount, 0);
+  const fixedCatMap = { rent:'🏠', utility:'💡', comms:'📱', sub:'📺', insure:'🛡️', other:'📋' };
+
   return (
     <Shell active="report" go={go} title="月次レポート" subtitle={`${today.getMonth()+1}月の収支サマリー`} actions={<MonthPill />}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
@@ -1410,7 +1414,7 @@ function ReportScreen({ go }) {
         </svg>
       </Card>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start', marginBottom: 20 }}>
         <Card>
           <SectionTitle>支出カテゴリ Top4</SectionTitle>
           {ranking.length === 0 ? (
@@ -1437,6 +1441,31 @@ function ReportScreen({ go }) {
           ))}
         </Card>
       </div>
+
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <SectionTitle style={{ marginBottom: 0 }}>契約中のサブスク・固定費</SectionTitle>
+          <span style={{ fontSize: 14, fontWeight: 700, color: C.info, fontFeatureSettings: tnum }}>月 ¥{fmt(fixedTotal)}</span>
+        </div>
+        {fixedItems.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '24px 0', color: C.textFaint, fontSize: 13 }}>登録された固定費がありません</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+            {fixedItems.map(item => (
+              <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.bg, borderRadius: 12, padding: '12px 14px' }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+                  {fixedCatMap[item.cat] || '📋'}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</div>
+                  <div style={{ fontSize: 11, color: C.textFaint, marginTop: 2 }}>{item.payment}</div>
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFeatureSettings: tnum, flexShrink: 0 }}>¥{fmt(item.amount)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
     </Shell>
   );
 }

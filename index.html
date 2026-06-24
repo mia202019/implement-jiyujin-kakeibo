@@ -1698,6 +1698,10 @@ function ReportScreen({ go }) {
 
   const monthLabel = `${today.getMonth()+1}月`;
 
+  const fixedItems = Store.get('fixedExpenses', []).filter(i => i.active);
+  const fixedTotal = fixedItems.reduce((s, i) => s + i.amount, 0);
+  const fixedCatMap = { rent:'🏠', utility:'💡', comms:'📱', sub:'📺', insure:'🛡️', other:'📋' };
+
   return (
     <Screen>
       <div style={{ flex:1, overflowY:'auto', padding:'56px 16px 20px' }}>
@@ -1776,6 +1780,28 @@ function ReportScreen({ go }) {
               <span style={{ fontWeight:700, color:parseFloat(savingsRate)>=20?C.primary:C.warning }}>{savingsRate}%</span>
             </div>
           )}
+        </Card>
+
+        {/* ④ 契約中のサブスク・固定費 */}
+        <Card style={{ marginTop:14 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:C.text }}>契約中のサブスク・固定費</div>
+            <div style={{ fontSize:12, fontWeight:700, color:C.info, fontFeatureSettings:"'tnum'" }}>月 ¥{fmt(fixedTotal)}</div>
+          </div>
+          {fixedItems.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'16px 0', color:C.textFaint, fontSize:13 }}>登録された固定費がありません</div>
+          ) : fixedItems.map((item, i) => (
+            <div key={item.id} style={{ display:'flex', alignItems:'center', gap:10, paddingBottom: i<fixedItems.length-1?11:0, marginBottom: i<fixedItems.length-1?11:0, borderBottom: i<fixedItems.length-1?`1px solid ${C.bgCard}`:'none' }}>
+              <div style={{ width:34, height:34, borderRadius:10, background:C.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>
+                {fixedCatMap[item.cat] || '📋'}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:600, color:C.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{item.name}</div>
+                <div style={{ fontSize:11, color:C.textFaint, marginTop:2 }}>{item.payment} · {item.day}</div>
+              </div>
+              <div style={{ fontSize:14, fontWeight:700, color:C.text, fontFeatureSettings:"'tnum'", flexShrink:0 }}>¥{fmt(item.amount)}</div>
+            </div>
+          ))}
         </Card>
       </div>
       <BottomNav active="report" go={go} />
