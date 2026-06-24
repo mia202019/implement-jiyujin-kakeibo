@@ -770,10 +770,12 @@ function HomeScreen({ go }) {
         {/* ── ① 結論 ── */}
         <div style={{ margin:'0 16px 16px', background:'linear-gradient(135deg, #1D2A22 0%, #0B1F17 100%)', borderRadius:24, padding:'22px 22px 18px', position:'relative', overflow:'hidden' }}>
           <div style={{ position:'absolute', right:-44, top:-44, width:160, height:160, background:'rgba(9,125,96,0.14)', borderRadius:'50%', pointerEvents:'none' }} />
-          <div style={{ fontSize:11, fontWeight:600, color:'rgba(255,255,255,0.48)', marginBottom:3, letterSpacing:'0.02em' }}>今日から使っていい金額</div>
-          <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:15 }}>
-            <span style={{ fontSize:52, fontWeight:700, color:'white', letterSpacing:'-2.5px', fontFeatureSettings:"'tnum'", lineHeight:1 }}>¥{fmt(dailyBudget)}</span>
-            <span style={{ fontSize:17, color:'rgba(255,255,255,0.5)', fontWeight:500 }}>/日</span>
+          <div style={{ fontSize:11, fontWeight:600, color:'rgba(255,255,255,0.48)', marginBottom:3, letterSpacing:'0.02em' }}>今月あと使える金額</div>
+          <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:6 }}>
+            <span style={{ fontSize:52, fontWeight:700, color: lifeBizLeft > 0 ? 'white' : '#f87171', letterSpacing:'-2.5px', fontFeatureSettings:"'tnum'", lineHeight:1 }}>¥{fmt(lifeBizLeft)}</span>
+          </div>
+          <div style={{ fontSize:12, color:'rgba(255,255,255,0.38)', marginBottom:15 }}>
+            残り{daysLeft}日 · 1日あたり ¥{fmt(dailyBudget)}ペースで使えます
           </div>
           <div style={{ display:'flex', gap:10 }}>
             <div style={{ flex:1, background:'rgba(255,255,255,0.08)', borderRadius:12, padding:'10px 12px' }}>
