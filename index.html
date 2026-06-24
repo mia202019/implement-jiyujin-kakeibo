@@ -48,6 +48,10 @@
 const { useState, useCallback, useEffect } = React;
 const CLIENT_ID = '954710101476-go30mqdlnjbu24qji456qkjhe318bf9q.apps.googleusercontent.com';
 function parseJwt(t) { return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); }
+const Store = {
+  get: (key, def={}) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; } },
+  set: (key, val) => localStorage.setItem(key, JSON.stringify(val)),
+};
 
 // ── Design tokens ──────────────────────────────────────────────────────────
 const C = {
@@ -178,6 +182,43 @@ function LoginScreen({ onLogin, onSkip }) {
   );
 }
 
+// ── 01b User Type Selection ────────────────────────────────────────────────
+function UserTypeScreen({ onSelect }) {
+  const [sel, setSel] = useState(null);
+  const types = [
+    { id: 'freelance', emoji: '💼', title: 'フリーランス',     desc: '個人事業主・フリーランスとして活動中' },
+    { id: 'employee',  emoji: '🏢', title: '会社員',           desc: '会社に勤めて給与をもらっている' },
+    { id: 'hybrid',    emoji: '⚡', title: '会社員 + 副業',    desc: '給与と副収入の両方がある' },
+  ];
+  return (
+    <Screen bg="linear-gradient(160deg, #EFF8F5 0%, #D4E8E3 100%)">
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 24px 24px' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>STEP 0 / 3</div>
+        <div style={{ fontSize: 23, fontWeight: 700, color: C.text, lineHeight: 1.4, marginBottom: 10 }}>あなたの<br/>働き方は？</div>
+        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 32 }}>あなたに合った設定でスタートします</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {types.map(t => {
+            const active = sel === t.id;
+            return (
+              <button key={t.id} onClick={() => setSel(t.id)} style={{ background: active ? C.primaryLight : 'white', border: `${active ? 2 : 1.5}px solid ${active ? C.primary : C.border}`, borderRadius: 20, padding: '20px 20px', display: 'flex', alignItems: 'center', gap: 16, boxShadow: active ? '0 4px 16px rgba(9,125,96,0.15)' : 'none', width: '100%', textAlign: 'left' }}>
+                <div style={{ width: 48, height: 48, background: active ? C.primary : C.bg, borderRadius: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{t.emoji}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 3 }}>{t.title}</div>
+                  <div style={{ fontSize: 12, color: C.textMuted }}>{t.desc}</div>
+                </div>
+                {active && <div style={{ width: 24, height: 24, background: C.primary, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><svg width="12" height="10" viewBox="0 0 12 10" fill="none"><path d="M1 5L4.5 8.5L11 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg></div>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{ padding: '16px 24px 32px', flexShrink: 0 }}>
+        <PrimaryBtn onClick={() => sel && onSelect(sel)} style={{ opacity: sel ? 1 : 0.5 }}>次へ →</PrimaryBtn>
+      </div>
+    </Screen>
+  );
+}
+
 // ── 02 Onboarding 1/3 — Income type ───────────────────────────────────────
 function Onboarding1({ onNext }) {
   const [sel, setSel] = useState(0);
@@ -264,7 +305,7 @@ function Onboarding2({ onNext }) {
           </div>
         </div>
       </div>
-      <div style={{ padding: '16px 24px 32px', flexShrink: 0 }}><PrimaryBtn onClick={onNext}>次へ →</PrimaryBtn></div>
+      <div style={{ padding: '16px 24px 32px', flexShrink: 0 }}><PrimaryBtn onClick={() => { Store.set('settings', { ...Store.get('settings'), taxRate: rate }); onNext(); }}>次へ →</PrimaryBtn></div>
     </Screen>
   );
 }
@@ -308,18 +349,194 @@ function Onboarding3({ onNext }) {
           {bizCats.map(c => <Pill key={c} cat={c} sel={biz.has(c)} color={C.primary} bg={C.primaryLight} border="#68B09A" onToggle={() => toggle(biz, setBiz, c)} />)}
         </div>
       </div>
-      <div style={{ padding: '16px 24px 32px', flexShrink: 0 }}><PrimaryBtn onClick={onNext}>はじめる</PrimaryBtn></div>
+      <div style={{ padding: '16px 24px 32px', flexShrink: 0 }}><PrimaryBtn onClick={() => { Store.set('settings', { ...Store.get('settings'), categories: [...life, ...biz], onboardingDone: true }); onNext(); }}>はじめる</PrimaryBtn></div>
+    </Screen>
+  );
+}
+
+// ── 会社員 Onboarding ──────────────────────────────────────────────────────
+function EmpOnboarding1({ onNext }) {
+  const [salary, setSalary] = useState('');
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 24px 24px' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 32 }}>{[0,1].map(i => <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i === 0 ? C.primary : C.border }} />)}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>STEP 1 / 2</div>
+        <div style={{ fontSize: 23, fontWeight: 700, color: C.text, lineHeight: 1.4, marginBottom: 10 }}>月の手取り収入を<br/>教えてください</div>
+        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 32 }}>税引き後の実際に受け取る金額を入力してください</div>
+        <Card>
+          <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 10 }}>月の手取り（円）</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 24, fontWeight: 700, color: C.text }}>¥</span>
+            <input type="number" value={salary} onChange={e => setSalary(e.target.value)} placeholder="300,000" style={{ flex: 1, fontSize: 28, fontWeight: 700, color: C.text, border: 'none', outline: 'none', background: 'transparent' }} />
+          </div>
+          <div style={{ height: 2, background: C.border, borderRadius: 1, marginTop: 12 }} />
+          <div style={{ fontSize: 12, color: C.textFaint, marginTop: 8 }}>あとから変更できます</div>
+        </Card>
+      </div>
+      <div style={{ padding: '16px 24px 32px', flexShrink: 0 }}>
+        <PrimaryBtn onClick={() => { Store.set('settings', { ...Store.get('settings'), salary: Number(salary) || 0 }); onNext(); }}>次へ →</PrimaryBtn>
+      </div>
+    </Screen>
+  );
+}
+
+function EmpOnboarding2({ onNext }) {
+  const salary = Store.get('settings').salary || 0;
+  const [pct, setPct] = useState(20);
+  const goal = Math.round(salary * pct / 100);
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 24px 24px' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 32 }}>{[0,1].map(i => <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: C.primary }} />)}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>STEP 2 / 2</div>
+        <div style={{ fontSize: 23, fontWeight: 700, color: C.text, lineHeight: 1.4, marginBottom: 10 }}>毎月の貯蓄目標を<br/>設定しましょう</div>
+        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 28 }}>手取りの何%を貯蓄に回しますか？</div>
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{ fontSize: 60, fontWeight: 700, color: C.primary, letterSpacing: '-3px', lineHeight: 1 }}>{pct}%</div>
+            <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>月 ¥{fmt(goal)} を貯蓄</div>
+          </div>
+          <input type="range" min={5} max={50} value={pct} onChange={e => setPct(+e.target.value)} style={{ width: '100%', marginBottom: 8 }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 11, color: C.textFaint }}>5%</span>
+            <span style={{ fontSize: 11, color: C.textFaint }}>27%</span>
+            <span style={{ fontSize: 11, color: C.textFaint }}>50%</span>
+          </div>
+        </Card>
+        <div style={{ background: C.primaryLight, borderRadius: 18, padding: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.primary, marginBottom: 10 }}>月収 ¥{fmt(salary)} の場合</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 700, color: C.primary }}>¥{fmt(goal)}</div><div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>貯蓄</div></div>
+            <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>¥{fmt(salary - goal)}</div><div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>生活費に使える</div></div>
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: '16px 24px 32px', flexShrink: 0 }}>
+        <PrimaryBtn onClick={() => { Store.set('settings', { ...Store.get('settings'), savingsGoal: goal, savingsPct: pct, onboardingDone: true }); onNext(); }}>はじめる</PrimaryBtn>
+      </div>
+    </Screen>
+  );
+}
+
+// ── 会社員+副業 Onboarding ─────────────────────────────────────────────────
+function HybOnboarding1({ onNext }) {
+  const [salary, setSalary] = useState('');
+  const [side, setSide] = useState('');
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 24px 24px' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 32 }}>{[0,1,2].map(i => <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i === 0 ? C.primary : C.border }} />)}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>STEP 1 / 3</div>
+        <div style={{ fontSize: 23, fontWeight: 700, color: C.text, lineHeight: 1.4, marginBottom: 10 }}>収入を入力して<br/>ください</div>
+        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 28 }}>給与と副業の両方を設定します</div>
+        <Card style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 8 }}>🏢 給与手取り（月・円）</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 20, fontWeight: 700, color: C.text }}>¥</span>
+            <input type="number" value={salary} onChange={e => setSalary(e.target.value)} placeholder="300,000" style={{ flex: 1, fontSize: 24, fontWeight: 700, color: C.text, border: 'none', outline: 'none', background: 'transparent' }} />
+          </div>
+          <div style={{ height: 2, background: C.border, borderRadius: 1, marginTop: 10 }} />
+        </Card>
+        <Card>
+          <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 8 }}>⚡ 副業収入目標（月・円）</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 20, fontWeight: 700, color: C.primary }}>¥</span>
+            <input type="number" value={side} onChange={e => setSide(e.target.value)} placeholder="50,000" style={{ flex: 1, fontSize: 24, fontWeight: 700, color: C.primary, border: 'none', outline: 'none', background: 'transparent' }} />
+          </div>
+          <div style={{ height: 2, background: C.border, borderRadius: 1, marginTop: 10 }} />
+        </Card>
+      </div>
+      <div style={{ padding: '16px 24px 32px', flexShrink: 0 }}>
+        <PrimaryBtn onClick={() => { Store.set('settings', { ...Store.get('settings'), salary: Number(salary)||0, sideIncome: Number(side)||0 }); onNext(); }}>次へ →</PrimaryBtn>
+      </div>
+    </Screen>
+  );
+}
+
+function HybOnboarding2({ onNext }) {
+  const side = Store.get('settings').sideIncome || 0;
+  const needsFiling = side * 12 > 200000;
+  const [rate, setRate] = useState(15);
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 24px 24px' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 32 }}>{[0,1,2].map(i => <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i <= 1 ? C.primary : C.border }} />)}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>STEP 2 / 3</div>
+        <div style={{ fontSize: 23, fontWeight: 700, color: C.text, lineHeight: 1.4, marginBottom: 10 }}>副業の税金を<br/>積み立てましょう</div>
+        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 20 }}>副業収入から税金分を確保しておきます</div>
+        {needsFiling && (
+          <div style={{ background: '#FFF8E1', border: '1.5px solid #F9A825', borderRadius: 16, padding: '14px 18px', marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#E65100', marginBottom: 4 }}>⚠️ 確定申告が必要です</div>
+            <div style={{ fontSize: 12, color: '#5D4037', lineHeight: 1.6 }}>副業収入が年間20万円を超える見込みのため、確定申告が必要です。</div>
+          </div>
+        )}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{ fontSize: 56, fontWeight: 700, color: C.warning, letterSpacing: '-3px', lineHeight: 1 }}>{rate}%</div>
+            <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>副業収入から積み立て → 月 ¥{fmt(Math.round(side * rate / 100))}</div>
+          </div>
+          <input type="range" min={10} max={30} value={rate} onChange={e => setRate(+e.target.value)} style={{ width: '100%', marginBottom: 8 }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 11, color: C.textFaint }}>10%</span><span style={{ fontSize: 11, color: C.textFaint }}>30%</span></div>
+        </Card>
+      </div>
+      <div style={{ padding: '16px 24px 32px', flexShrink: 0 }}>
+        <PrimaryBtn onClick={() => { Store.set('settings', { ...Store.get('settings'), taxRate: rate }); onNext(); }}>次へ →</PrimaryBtn>
+      </div>
+    </Screen>
+  );
+}
+
+function HybOnboarding3({ onNext }) {
+  const lifeCats = ['食費', '交通費', '日用品', '美容・衣服', '外食', '娯楽', '医療'];
+  const bizCats  = ['機材・ソフト', '外注費', '広告宣伝', '交通費（副業）', '書籍・学習', '通信費'];
+  const [life, setLife] = useState(new Set(['食費', '交通費', '日用品', '外食']));
+  const [biz,  setBiz]  = useState(new Set(['機材・ソフト', '通信費']));
+  const toggle = (set, setFn, cat) => { const n = new Set(set); n.has(cat) ? n.delete(cat) : n.add(cat); setFn(n); };
+  const Pill = ({ cat, sel, color, bg, border, onToggle }) => (
+    <button onClick={onToggle} style={{ background: sel ? color : bg, color: sel ? 'white' : color, borderRadius: 999, padding: '8px 16px', fontSize: 12, fontWeight: sel ? 600 : 500, border: `1px solid ${sel ? 'transparent' : border}` }}>{cat}</button>
+  );
+  return (
+    <Screen>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 24px 24px' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 32 }}>{[0,1,2].map(i => <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: C.primary }} />)}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>STEP 3 / 3</div>
+        <div style={{ fontSize: 23, fontWeight: 700, color: C.text, lineHeight: 1.4, marginBottom: 10 }}>カテゴリを<br/>選んでください</div>
+        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 28 }}>あとから追加・変更できます</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.info, letterSpacing: '0.06em', marginBottom: 10 }}>生活費カテゴリ</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
+          {lifeCats.map(c => <Pill key={c} cat={c} sel={life.has(c)} color={C.info} bg={C.infoBg} border={C.infoBorder} onToggle={() => toggle(life, setLife, c)} />)}
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.primary, letterSpacing: '0.06em', marginBottom: 10 }}>副業費カテゴリ</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {bizCats.map(c => <Pill key={c} cat={c} sel={biz.has(c)} color={C.primary} bg={C.primaryLight} border="#68B09A" onToggle={() => toggle(biz, setBiz, c)} />)}
+        </div>
+      </div>
+      <div style={{ padding: '16px 24px 32px', flexShrink: 0 }}>
+        <PrimaryBtn onClick={() => { Store.set('settings', { ...Store.get('settings'), categories: [...life, ...biz], onboardingDone: true }); onNext(); }}>はじめる</PrimaryBtn>
+      </div>
     </Screen>
   );
 }
 
 // ── 05 Home ────────────────────────────────────────────────────────────────
 function HomeScreen({ go }) {
+  const s = Store.get('settings', {});
+  const userType = s.userType || 'freelance';
+  const income = (s.salary || 0) + (s.sideIncome || 0) + (s.income || 0);
+  const taxRate = s.taxRate || (userType === 'employee' ? 0 : 20);
+  const taxAmt = userType === 'employee' ? 0 : Math.round(income * taxRate / 100);
+  const savingsGoal = s.savingsGoal || 0;
+  const today = new Date();
+  const daysLeft = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() - today.getDate();
+  const usable = Math.max(0, income - taxAmt - savingsGoal);
+  const dailyBudget = daysLeft > 0 ? Math.round(usable / daysLeft) : 0;
+  const bizLabel = userType === 'employee' ? '特別支出' : '事業費';
   const breakdown = [
-    { name: '生活費',  amt: 98000,  pct: 65, color: C.info,    note: '予算の65%',        noteColor: C.textMuted },
-    { name: '事業費',  amt: 43000,  pct: 86, color: C.primary, note: '予算の86% ⚠',     noteColor: C.warning  },
-    { name: '税金積立', amt: 45000, pct: 59, color: C.warning, note: '目標¥76,000の59%', noteColor: C.textMuted },
-    { name: '投資',    amt: 6000,   pct: 30, color: C.invest,  note: '',                  noteColor: C.textMuted },
+    { name: '生活費',  amt: 0, pct: 0, color: C.info,    note: '¥0 支出',  noteColor: C.textMuted },
+    { name: bizLabel,  amt: 0, pct: 0, color: C.primary, note: '¥0 支出',  noteColor: C.textMuted },
+    { name: '税金積立', amt: taxAmt, pct: income > 0 ? Math.round(taxAmt/income*100) : 0, color: C.warning, note: `${taxRate}% 積立`, noteColor: C.textMuted },
+    { name: userType === 'freelance' ? '投資' : '貯蓄', amt: savingsGoal, pct: income > 0 ? Math.round(savingsGoal/income*100) : 0, color: C.invest, note: '', noteColor: C.textMuted },
   ];
 
   return (
@@ -349,10 +566,10 @@ function HomeScreen({ go }) {
           <div style={{ position: 'absolute', right: 24, bottom: -20, width: 80, height: 80, background: 'rgba(255,255,255,0.04)', borderRadius: '50%' }} />
           <div style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.72)', marginBottom: 4 }}>今日から使える</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
-            <span style={{ fontSize: 50, fontWeight: 700, color: 'white', letterSpacing: '-2.5px', fontFeatureSettings: "'tnum'", lineHeight: 1 }}>¥3,900</span>
+            <span style={{ fontSize: 50, fontWeight: 700, color: 'white', letterSpacing: '-2.5px', fontFeatureSettings: "'tnum'", lineHeight: 1 }}>¥{fmt(dailyBudget)}</span>
             <span style={{ fontSize: 17, color: 'rgba(255,255,255,0.72)', fontWeight: 500 }}>/日</span>
           </div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 18 }}>月末まであと8日　·　残り予測 ¥82,000</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 18 }}>月末まであと{daysLeft}日　·　残り予測 ¥{fmt(usable)}</div>
           <div style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 4, height: 5, marginBottom: 6 }}>
             <div style={{ background: 'rgba(255,255,255,0.85)', width: '77%', height: '100%', borderRadius: 4 }} />
           </div>
@@ -365,8 +582,8 @@ function HomeScreen({ go }) {
         <div style={{ display: 'flex', gap: 12, padding: '0 16px', marginBottom: 14 }}>
           <Card style={{ flex: 1, padding: 18 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, marginBottom: 8 }}>確定収入</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: C.text, letterSpacing: '-1px', fontFeatureSettings: "'tnum'" }}>380,000</div>
-            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>円　+¥0見込み</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: C.text, letterSpacing: '-1px', fontFeatureSettings: "'tnum'" }}>{fmt(income)}</div>
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>円　今月の合計</div>
           </Card>
           <Card style={{ flex: 1, padding: 18 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: C.warning, marginBottom: 8 }}>月末残り予測</div>
@@ -984,15 +1201,36 @@ function App() {
     go(map[key] || key);
   }, [go]);
 
-  const onLogin = (u) => { localStorage.setItem('gUser', JSON.stringify(u)); setUser(u); setScreen('home'); };
-  const onLogout = () => { localStorage.removeItem('gUser'); if (window.google) google.accounts.id.disableAutoSelect(); setUser(null); setScreen('login'); };
+  const onLogin = (u) => {
+    localStorage.setItem('gUser', JSON.stringify(u));
+    setUser(u);
+    const prefs = Store.get('settings', {});
+    setScreen(prefs.onboardingDone ? 'home' : 'usertype');
+  };
+  const onLogout = () => {
+    localStorage.removeItem('gUser');
+    Store.set('settings', {});
+    if (window.google) google.accounts.id.disableAutoSelect();
+    setUser(null);
+    setScreen('login');
+  };
+  const onSelectType = (type) => {
+    Store.set('settings', { ...Store.get('settings'), userType: type });
+    go(type === 'freelance' ? 'fl-ob1' : type === 'employee' ? 'emp-ob1' : 'hyb-ob1');
+  };
 
   const render = () => {
     switch (screen) {
-      case 'login':         return <LoginScreen    onLogin={onLogin} onSkip={() => go('onboarding1')} />;
-      case 'onboarding1':   return <Onboarding1    onNext={() => go('onboarding2')} />;
-      case 'onboarding2':   return <Onboarding2    onNext={() => go('onboarding3')} />;
-      case 'onboarding3':   return <Onboarding3    onNext={() => go('home')} />;
+      case 'login':         return <LoginScreen    onLogin={onLogin} onSkip={() => go('usertype')} />;
+      case 'usertype':      return <UserTypeScreen onSelect={onSelectType} />;
+      case 'fl-ob1':        return <Onboarding1    onNext={() => go('fl-ob2')} />;
+      case 'fl-ob2':        return <Onboarding2    onNext={() => go('fl-ob3')} />;
+      case 'fl-ob3':        return <Onboarding3    onNext={() => go('home')} />;
+      case 'emp-ob1':       return <EmpOnboarding1 onNext={() => go('emp-ob2')} />;
+      case 'emp-ob2':       return <EmpOnboarding2 onNext={() => go('home')} />;
+      case 'hyb-ob1':       return <HybOnboarding1 onNext={() => go('hyb-ob2')} />;
+      case 'hyb-ob2':       return <HybOnboarding2 onNext={() => go('hyb-ob3')} />;
+      case 'hyb-ob3':       return <HybOnboarding3 onNext={() => go('home')} />;
       case 'home':          return <HomeScreen      go={nav} />;
       case 'input':         return <InputSelector   go={nav} />;
       case 'expense-input': return <ExpenseInput    onBack={() => go(prev)} onDone={() => go('home')} />;
