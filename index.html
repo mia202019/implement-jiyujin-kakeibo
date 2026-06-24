@@ -1810,6 +1810,34 @@ function ReportScreen({ go }) {
 }
 
 // ── 12 Business Management / 事業管理 ─────────────────────────────────────
+function exportToFreee(expenses, income, ym) {
+  const ACCOUNT_MAP = {
+    '材料費':     '材料費',
+    '機材・ソフト':'消耗品費',
+    '出店料':     '地代家賃',
+    '交際費':     '交際費',
+    '教育・学習': '研修費',
+    '交通費':     '旅費交通費',
+    '通信費':     '通信費',
+    '食費':       '会議費',
+    '外食':       '会議費',
+    '日用品':     '消耗品費',
+    '美容・衣服': '消耗品費',
+    '医療・健康': '福利厚生費',
+    '趣味・娯楽': '雑費',
+    'その他':     '雑費',
+  };
+  const rows = [['取引日','収支区分','勘定科目','取引先','品目','税区分','金額（税込）','備考']];
+  income.forEach(t => rows.push([t.date,'収入','売上高','',t.memo||t.category||'','課税10%',t.amount,t.memo||'']));
+  expenses.forEach(t => rows.push([t.date,'支出',ACCOUNT_MAP[t.category]||'雑費','',t.category||'','課税10%',t.amount,t.memo||'']));
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob = new Blob(['﻿'+csv], { type:'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `freee_${ym}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+
 function BizScreen({ go }) {
   const [tab, setTab] = React.useState('pl');
   const allTxns = Store.get('transactions', []);
@@ -1962,7 +1990,9 @@ function BizScreen({ go }) {
             <Card>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
                 <div style={{ fontSize:12, fontWeight:700, color:C.text }}>経費一覧</div>
-                <div style={{ fontSize:10, color:C.textMuted, background:C.bgCard, borderRadius:6, padding:'3px 8px' }}>確定申告用</div>
+                <button onClick={()=>exportToFreee(selTxns, selIncome, selYm)} style={{ display:'flex', alignItems:'center', gap:5, background:'#1D6E3E', color:'white', border:'none', borderRadius:8, padding:'5px 11px', fontSize:11, fontWeight:700, cursor:'pointer' }}>
+                  ⬇ freee出力
+                </button>
               </div>
               {selTxns.length === 0 ? (
                 <div style={{ textAlign:'center', padding:'24px 0', color:C.textFaint, fontSize:13 }}>この月の事業費がありません</div>
