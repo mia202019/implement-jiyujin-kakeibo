@@ -13,7 +13,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; background: #B2CEC8; }
+    html, body { height: 100%; background: #EFF8F5; }
     body {
       font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
       -webkit-font-smoothing: antialiased;
@@ -46,6 +46,7 @@
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useCallback, useEffect } = React;
+const tnum = "'tnum'";
 const SUPABASE_URL = 'https://hrhoncnowgbqzngdxlmo.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_I0l7ZswnKlT_L1JKdcLMlg_qcTuvxnz';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -185,7 +186,7 @@ function Card({ children, style = {} }) {
 
 function PrimaryBtn({ children, onClick, style = {} }) {
   return (
-    <button onClick={onClick} style={{
+    <button type="button" onClick={onClick} style={{
       background: C.primary, color: 'white', borderRadius: 18,
       padding: 18, textAlign: 'center', fontSize: 16, fontWeight: 700,
       boxShadow: '0 8px 24px rgba(9,125,96,0.32)', width: '100%',
@@ -236,7 +237,7 @@ function BottomNav({ active, go }) {
       {items.map(({ key, label, icon }) => {
         const a = active === key;
         return (
-          <button key={key} onClick={() => go(key)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '10px 0 8px' }}>
+          <button key={key} onClick={() => go(key)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '14px 0 12px' }}>
             {icon(a)}
             <span style={{ fontSize: 10, fontWeight: a ? 700 : 500, color: a ? C.primary : C.textMuted }}>{label}</span>
           </button>
@@ -1075,7 +1076,7 @@ function HistoryScreen({ go }) {
 }
 
 // ── 08 Expense Input ───────────────────────────────────────────────────────
-function ExpenseInput({ onBack, onDone }) {
+function ExpenseInput({ onBack, onDone, go }) {
   const [amount, setAmount] = useState('');
   const [date,   setDate]   = useState('今日');
   const [cat,    setCat]    = useState('食費');
@@ -1118,11 +1119,12 @@ function ExpenseInput({ onBack, onDone }) {
         </Card>
 
         {/* Date */}
+        <div style={{ marginBottom: 6, fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em' }}>日付</div>
         <div style={{ display: 'flex', gap: 8, marginBottom: isCustomDate ? 10 : 16 }}>
           {['今日','昨日'].map(d => (
-            <button key={d} onClick={() => setDate(d)} style={{ background: date===d ? C.primary : 'white', color: date===d ? 'white' : C.textMed, borderRadius: 999, padding: '10px 18px', fontSize: 13, fontWeight: date===d ? 600 : 500, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border:'none', cursor:'pointer' }}>{d}</button>
+            <button key={d} onClick={() => setDate(d)} style={{ background: date===d ? C.primary : 'white', color: date===d ? 'white' : C.text, borderRadius: 999, padding: '11px 20px', fontSize: 13, fontWeight: date===d ? 700 : 500, border: `1.5px solid ${date===d ? C.primary : C.border}`, cursor:'pointer' }}>{d}</button>
           ))}
-          <button onClick={() => { if (!isCustomDate) setDate(TODAY); }} style={{ background: isCustomDate ? C.primary : 'white', color: isCustomDate ? 'white' : C.textMed, borderRadius: 999, padding: '10px 18px', fontSize: 13, fontWeight: isCustomDate ? 600 : 500, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border:'none', cursor:'pointer' }}>
+          <button onClick={() => { if (!isCustomDate) setDate(TODAY); }} style={{ background: isCustomDate ? C.primary : 'white', color: isCustomDate ? 'white' : C.text, borderRadius: 999, padding: '11px 20px', fontSize: 13, fontWeight: isCustomDate ? 700 : 500, border: `1.5px solid ${isCustomDate ? C.primary : C.border}`, cursor:'pointer' }}>
             {isCustomDate ? date : '日付選択'}
           </button>
         </div>
@@ -1223,15 +1225,16 @@ function ExpenseInput({ onBack, onDone }) {
         </Card>
       </div>
 
-      <div style={{ padding: '12px 20px 24px', flexShrink: 0 }}>
+      <div style={{ padding: '12px 20px 16px', flexShrink: 0 }}>
         <PrimaryBtn onClick={save}>追加する</PrimaryBtn>
       </div>
+      <BottomNav active="input" go={go} />
     </Screen>
   );
 }
 
 // ── 07 Income Input ────────────────────────────────────────────────────────
-function IncomeInput({ onBack, onDone }) {
+function IncomeInput({ onBack, onDone, go }) {
   const [amount, setAmount] = useState('');
   const [type,   setType]   = useState('確定収入');
   const [incDiv, setIncDiv] = useState('事業収入');
@@ -1316,12 +1319,12 @@ function IncomeInput({ onBack, onDone }) {
           </div>
           <input value={source} onChange={e => setSource(e.target.value)} placeholder="またはここに入力..."
             style={{ background: C.bg, borderRadius: 12, padding: '13px 16px', fontSize: 14, color: C.text, border: 'none', width: '100%', outline: 'none', marginBottom: 16 }} />
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>入金日</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 10 }}>入金日</div>
           <div style={{ display: 'flex', gap: 8, marginBottom: isCustomDate ? 10 : 0 }}>
             {['今日','昨日'].map(d => (
-              <button key={d} onClick={() => setDate(d)} style={{ background: date===d ? C.primary : C.bg, color: date===d ? 'white' : C.textMed, borderRadius: 999, padding: '10px 20px', fontSize: 13, fontWeight: date===d ? 600 : 500, border:'none', cursor:'pointer' }}>{d}</button>
+              <button key={d} onClick={() => setDate(d)} style={{ background: date===d ? C.primary : 'white', color: date===d ? 'white' : C.text, borderRadius: 999, padding: '11px 20px', fontSize: 13, fontWeight: date===d ? 700 : 500, border: `1.5px solid ${date===d ? C.primary : C.border}`, cursor:'pointer' }}>{d}</button>
             ))}
-            <button onClick={() => { if (!isCustomDate) setDate(TODAY); }} style={{ background: isCustomDate ? C.primary : C.bg, color: isCustomDate ? 'white' : C.textMed, borderRadius: 999, padding: '10px 20px', fontSize: 13, fontWeight: isCustomDate ? 600 : 500, border:'none', cursor:'pointer' }}>
+            <button onClick={() => { if (!isCustomDate) setDate(TODAY); }} style={{ background: isCustomDate ? C.primary : 'white', color: isCustomDate ? 'white' : C.text, borderRadius: 999, padding: '11px 20px', fontSize: 13, fontWeight: isCustomDate ? 700 : 500, border: `1.5px solid ${isCustomDate ? C.primary : C.border}`, cursor:'pointer' }}>
               {isCustomDate ? date : '日付選択'}
             </button>
           </div>
@@ -1356,20 +1359,35 @@ function IncomeInput({ onBack, onDone }) {
         </Card>
       </div>
 
-      <div style={{ padding: '12px 20px 24px', flexShrink: 0 }}>
+      <div style={{ padding: '12px 20px 16px', flexShrink: 0 }}>
         <PrimaryBtn onClick={save}>追加する</PrimaryBtn>
       </div>
+      <BottomNav active="input" go={go} />
     </Screen>
   );
 }
 
 // ── 08 Input selector modal ────────────────────────────────────────────────
 function InputSelector({ go }) {
+  const [editTxn, setEditTxn] = useState(null);
+  const [txns, setTxns] = useState(() => Store.get('transactions', []));
+
+  const handleSave = (updated) => {
+    const next = txns.map(t => t.id === updated.id ? updated : t);
+    Store.set('transactions', next); setTxns(next); setEditTxn(null);
+  };
+  const handleDelete = (id) => {
+    const next = txns.filter(t => t.id !== id);
+    Store.set('transactions', next); setTxns(next); setEditTxn(null);
+  };
+
+  const recent = txns.slice(0, 8);
+
   return (
     <Screen>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '56px 20px 20px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '56px 20px 20px' }}>
         <div style={{ fontSize: 21, fontWeight: 700, color: C.text, marginBottom: 4 }}>記録を追加</div>
-        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 32 }}>何を追加しますか？</div>
+        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 24 }}>何を追加しますか？</div>
 
         <button onClick={() => go('expense-input')} style={{ background: 'white', borderRadius: 20, padding: 24, display: 'flex', alignItems: 'center', gap: 18, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: 16, textAlign: 'left', width: '100%' }}>
           <div style={{ width: 56, height: 56, background: C.infoBg, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 26 }}>💸</div>
@@ -1380,7 +1398,7 @@ function InputSelector({ go }) {
           <svg style={{ marginLeft: 'auto', flexShrink: 0 }} width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1l6 6-6 6" stroke={C.textFaint} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
 
-        <button onClick={() => go('income-input')} style={{ background: 'white', borderRadius: 20, padding: 24, display: 'flex', alignItems: 'center', gap: 18, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: 32, textAlign: 'left', width: '100%' }}>
+        <button onClick={() => go('income-input')} style={{ background: 'white', borderRadius: 20, padding: 24, display: 'flex', alignItems: 'center', gap: 18, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: 24, textAlign: 'left', width: '100%' }}>
           <div style={{ width: 56, height: 56, background: '#D4F0E8', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 26 }}>💰</div>
           <div>
             <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 4 }}>収入を追加</div>
@@ -1389,30 +1407,31 @@ function InputSelector({ go }) {
           <svg style={{ marginLeft: 'auto', flexShrink: 0 }} width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1l6 6-6 6" stroke={C.textFaint} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
 
-        {(() => {
-          const recent = Store.get('transactions', []).slice(0, 5);
-          return (
-        <div style={{ marginTop: 'auto' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, letterSpacing: '0.04em', marginBottom: 12 }}>最近の記録</div>
-          {recent.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '20px 0', color: C.textFaint, fontSize: 13 }}>まだ記録がありません</div>
-          ) : recent.map(r => (
-            <div key={r.id} style={{ background: 'white', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
-              <span style={{ fontSize: 20 }}>{r.type==='income' ? '💰' : (CAT_EMOJI[r.category]||'📋')}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{r.memo || r.source || r.category}</div>
-                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{r.category||r.incomeType} · {r.date}</div>
-                {r.payment && <div style={{ marginTop: 4 }}><CardBadge name={r.payment} /></div>}
-              </div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: r.type==='income'?C.primary:C.text, fontFeatureSettings: "'tnum'", flexShrink:0 }}>{r.type==='income'?'+':'-'}¥{fmt(r.amount)}</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, letterSpacing: '0.04em', marginBottom: 12 }}>最近の記録（タップで編集）</div>
+        {recent.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px 0', color: C.textFaint, fontSize: 13 }}>まだ記録がありません</div>
+        ) : recent.map(r => (
+          <button key={r.id} onClick={() => setEditTxn(r)} style={{ background: 'white', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.04)', width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer' }}>
+            <span style={{ fontSize: 20 }}>{r.type==='income' ? '💰' : (CAT_EMOJI[r.category]||'📋')}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{r.memo || r.source || r.category}</div>
+              <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{r.category||r.incomeType} · {r.date}</div>
+              {r.payment && <div style={{ marginTop: 4 }}><CardBadge name={r.payment} /></div>}
             </div>
-          ))}
-        </div>
-          );
-        })()}
+            <div style={{ fontSize: 14, fontWeight: 700, color: r.type==='income'?C.primary:C.text, fontFeatureSettings: "'tnum'", flexShrink:0 }}>{r.type==='income'?'+':'-'}¥{fmt(r.amount)}</div>
+          </button>
+        ))}
       </div>
 
       <BottomNav active="input" go={go} />
+      {editTxn && (
+        <TxnEditModal
+          txn={editTxn}
+          onSave={handleSave}
+          onDelete={handleDelete}
+          onClose={() => setEditTxn(null)}
+        />
+      )}
     </Screen>
   );
 }
@@ -2750,8 +2769,6 @@ function SettingsScreen({ go, user, onLogout }) {
     { label: 'カード・支払い管理',  detail: cardCount > 0 ? `${cardCount}枚登録済み` : '未登録', emoji: '💳', action: () => go('cards') },
     { label: '財産目録',            detail: nwData.assets.length > 0 ? `純資産 ¥${fmt(nwTotal)}` : '未設定', emoji: '📒', action: () => go('networth') },
     { label: '通知設定',            detail: notify ? 'オン' : 'オフ', emoji: '🔔', action: toggleNotify },
-    { label: 'データの書き出し',    detail: 'JSONで保存',           emoji: '☁️', action: exportData },
-    { label: 'データの復元',        detail: 'JSONから読み込み',     emoji: '📥', action: importData },
   ];
 
   return (
@@ -2928,8 +2945,8 @@ function App() {
       case 'home':          return <HomeScreen      go={nav} />;
       case 'history':       return <HistoryScreen   go={nav} />;
       case 'input':         return <InputSelector   go={nav} />;
-      case 'expense-input': return <ExpenseInput    onBack={() => go(prev)} onDone={() => go('home')} />;
-      case 'income-input':  return <IncomeInput     onBack={() => go(prev)} onDone={() => go('home')} />;
+      case 'expense-input': return <ExpenseInput    onBack={() => go(prev)} onDone={() => go('home')} go={nav} />;
+      case 'income-input':  return <IncomeInput     onBack={() => go(prev)} onDone={() => go('home')} go={nav} />;
       case 'tax':           return <TaxScreen       go={nav} />;
       case 'budget':        return <BudgetScreen    go={nav} />;
       case 'biz':           return <BizScreen       go={nav} />;
