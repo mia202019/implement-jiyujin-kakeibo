@@ -221,11 +221,22 @@ function MonthPill() {
 
 // ── HOME (dashboard) ────────────────────────────────────────────────────────
 function HomeScreen({ go }) {
+  const s = Store.get('settings', {});
+  const userType = s.userType || 'freelance';
+  const income = (s.salary || 0) + (s.sideIncome || 0) + (s.income || 0);
+  const taxRate = s.taxRate || (userType === 'employee' ? 0 : 20);
+  const taxAmt = userType === 'employee' ? 0 : Math.round(income * taxRate / 100);
+  const savingsGoal = s.savingsGoal || 0;
+  const today = new Date();
+  const daysLeft = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() - today.getDate();
+  const usable = Math.max(0, income - taxAmt - savingsGoal);
+  const dailyBudget = daysLeft > 0 ? Math.round(usable / daysLeft) : 0;
+  const bizLabel = userType === 'employee' ? '特別支出' : '事業費';
   const breakdown = [
-    { name: '生活費',  amt: 98000,  pct: 65, color: C.info,    note: '予算の65%',        noteColor: C.textMuted },
-    { name: '事業費',  amt: 43000,  pct: 86, color: C.primary, note: '予算の86% ⚠',     noteColor: C.warning  },
-    { name: '税金積立', amt: 45000, pct: 59, color: C.warning, note: '目標¥76,000の59%', noteColor: C.textMuted },
-    { name: '投資',    amt: 6000,   pct: 30, color: C.invest,  note: '',                  noteColor: C.textMuted },
+    { name: '生活費',  amt: 0, pct: 0, color: C.info,    note: '¥0 支出',  noteColor: C.textMuted },
+    { name: bizLabel,  amt: 0, pct: 0, color: C.primary, note: '¥0 支出',  noteColor: C.textMuted },
+    { name: '税金積立', amt: taxAmt, pct: income > 0 ? Math.round(taxAmt/income*100) : 0, color: C.warning, note: `${taxRate}% 積立`, noteColor: C.textMuted },
+    { name: userType === 'freelance' ? '投資' : '貯蓄', amt: savingsGoal, pct: income > 0 ? Math.round(savingsGoal/income*100) : 0, color: C.invest, note: '', noteColor: C.textMuted },
   ];
   const stat = (label, value, sub, color, labelColor) => (
     <Card hover style={{ flex: 1 }}>
@@ -244,10 +255,10 @@ function HomeScreen({ go }) {
           <div style={{ position: 'absolute', right: 40, bottom: -28, width: 110, height: 110, background: 'rgba(255,255,255,0.04)', borderRadius: '50%' }} />
           <div style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.72)', marginBottom: 6 }}>今日から使えるお金</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 64, fontWeight: 700, color: 'white', letterSpacing: '-3px', fontFeatureSettings: tnum, lineHeight: 1 }}>¥3,900</span>
+            <span style={{ fontSize: 64, fontWeight: 700, color: 'white', letterSpacing: '-3px', fontFeatureSettings: tnum, lineHeight: 1 }}>¥{fmt(dailyBudget)}</span>
             <span style={{ fontSize: 20, color: 'rgba(255,255,255,0.72)', fontWeight: 500 }}>/日</span>
           </div>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 22 }}>月末まであと8日　·　残り予測 ¥82,000</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 22 }}>月末まであと{daysLeft}日　·　残り予測 ¥{fmt(usable)}</div>
           <div style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 4, height: 6, marginBottom: 7 }}>
             <div style={{ background: 'rgba(255,255,255,0.85)', width: '77%', height: '100%', borderRadius: 4 }} />
           </div>
@@ -257,15 +268,15 @@ function HomeScreen({ go }) {
         </div>
         {/* Stat column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {stat('確定収入', '¥380,000', '+¥0 見込み', C.text)}
-          {stat('月末残り予測', '¥82,000', '税・固定費を除く', C.warning, C.warning)}
+          {stat('確定収入', `¥${fmt(income)}`, '今月の合計', C.text)}
+          {stat('月末残り予測', `¥${fmt(usable)}`, '税・固定費を除く', C.warning, C.warning)}
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.55fr 1fr', gap: 20, marginTop: 20, alignItems: 'start' }}>
         {/* Breakdown */}
         <Card>
-          <SectionTitle right={<span style={{ fontSize: 15, fontWeight: 700, color: C.textMed, fontFeatureSettings: tnum }}>¥192,000</span>}>支出内訳</SectionTitle>
+          <SectionTitle right={<span style={{ fontSize: 15, fontWeight: 700, color: C.textMed, fontFeatureSettings: tnum }}>¥{fmt(breakdown.reduce((s,i)=>s+i.amt,0))}</span>}>支出内訳</SectionTitle>
           {breakdown.map((item, i) => (
             <div key={item.name} style={{ marginBottom: i < breakdown.length - 1 ? 18 : 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
