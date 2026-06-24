@@ -2240,7 +2240,7 @@ function FixedExpensesScreen({ go }) {
 
   const [items, setItems] = useState(() => Store.get('fixedExpenses', []));
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', amount: '', cat: 'rent', payment: 'カード', cycle: 'monthly', day: '毎月1日', month: thisMonth });
+  const [form, setForm] = useState({ name: '', amount: '', cat: 'rent', payment: 'カード', cycle: 'monthly', day: '毎月1日', month: thisMonth, division: '生活費' });
 
   const [regSet, setRegSet] = useState(() => new Set(
     Store.get('transactions',[]).filter(t=>t.source==='fixed'&&t.date&&t.date.startsWith(thisMonthStr())).map(t=>t.fixedId)
@@ -2253,7 +2253,7 @@ function FixedExpensesScreen({ go }) {
     if (!form.name || !form.amount) return;
     const next = [...items, { id: Date.now(), ...form, amount: Number(form.amount), active: true }];
     setItems(next); Store.set('fixedExpenses', next);
-    setForm({ name: '', amount: '', cat: 'rent', payment: 'カード', cycle: 'monthly', day: '毎月1日', month: thisMonth });
+    setForm({ name: '', amount: '', cat: 'rent', payment: 'カード', cycle: 'monthly', day: '毎月1日', month: thisMonth, division: '生活費' });
     setShowForm(false);
   };
   const toggle = id => { const n = items.map(i => i.id === id ? {...i, active: !i.active} : i); setItems(n); Store.set('fixedExpenses', n); };
@@ -2270,7 +2270,7 @@ function FixedExpensesScreen({ go }) {
     const existing = Store.get('transactions', []);
     const newTxns = unregistered.map((item, idx) => ({
       id: Date.now() + idx, type: 'expense', amount: item.amount, category: 'その他',
-      division: '生活費', payment: item.payment, memo: item.name,
+      division: item.division || '生活費', payment: item.payment, memo: item.name,
       date: TODAY, source: 'fixed', fixedId: item.id,
     }));
     Store.set('transactions', [...existing, ...newTxns]);
@@ -2357,6 +2357,14 @@ function FixedExpensesScreen({ go }) {
                 </div>
               </div>
               <div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 5, fontWeight: 600 }}>用途区分</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {['生活費','事業費'].map(d => (
+                    <button key={d} onClick={() => setForm(f=>({...f, division:d}))} style={{ flex:1, background: form.division===d ? C.primary : C.bg, color: form.division===d ? 'white' : C.text, borderRadius:10, padding:'9px', fontSize:13, fontWeight:700, border:'none', cursor:'pointer' }}>{d}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 5, fontWeight: 600 }}>支払いサイクル</div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {[['monthly','毎月'],['yearly','年1回']].map(([v,l]) => (
@@ -2433,7 +2441,8 @@ function FixedExpensesScreen({ go }) {
                         {cat.name} · {item.cycle === 'yearly' ? `年1回（${item.month}月）` : item.day}
                       </div>
                     </div>
-                    {item.active && registered && <span style={{ fontSize: 9, fontWeight: 700, color: C.primary, background: C.primaryLight, borderRadius: 5, padding: '2px 6px', flexShrink: 0 }}>登録済</span>}
+                    {item.division === '事業費' && <span style={{ fontSize: 9, fontWeight: 700, color: C.primary, background: C.primaryLight, borderRadius: 5, padding: '2px 6px', flexShrink: 0 }}>事業費</span>}
+                    {item.active && registered && <span style={{ fontSize: 9, fontWeight: 700, color: '#6366f1', background: '#EEF2FF', borderRadius: 5, padding: '2px 6px', flexShrink: 0 }}>登録済</span>}
                     {item.cycle === 'yearly' && <span style={{ fontSize: 9, fontWeight: 700, color: C.invest, background: C.invest+'18', borderRadius: 5, padding: '2px 6px', flexShrink: 0 }}>年払</span>}
                     <div style={{ fontSize: 14, fontWeight: 700, color: item.active ? C.text : C.textMuted, fontFeatureSettings: "'tnum'", flexShrink: 0 }}>¥{fmt(item.amount)}</div>
                     <button onClick={() => toggle(item.id)} style={{ width: 40, height: 22, borderRadius: 11, background: item.active ? C.primary : C.border, position: 'relative', flexShrink: 0, border: 'none', cursor: 'pointer', transition: 'background .2s' }}>

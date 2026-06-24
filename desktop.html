@@ -294,12 +294,26 @@ function AddButton({ go }) {
   );
 }
 
+const MonthCtx = React.createContext({ selYm: TODAY.slice(0,7), setSelYm: ()=>{} });
+
 function MonthPill() {
+  const { selYm, setSelYm } = React.useContext(MonthCtx);
+  const [y, m] = selYm.split('-').map(Number);
+  const prev = () => {
+    const d = new Date(y, m - 2, 1);
+    setSelYm(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+  };
+  const next = () => {
+    const d = new Date(y, m, 1);
+    const nxt = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    if (nxt <= TODAY.slice(0,7)) setSelYm(nxt);
+  };
+  const isLatest = selYm >= TODAY.slice(0,7);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'white', borderRadius: 12, padding: '9px 14px', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-      <button style={{ display: 'flex' }}><svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M8 2L3 6L8 10" stroke={C.textMed} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
-      <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>2026年6月</span>
-      <button style={{ display: 'flex' }}><svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M4 2L9 6L4 10" stroke={C.textFaint} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+      <button onClick={prev} style={{ display: 'flex', background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}><svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M8 2L3 6L8 10" stroke={C.textMed} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+      <span style={{ fontSize: 13, fontWeight: 700, color: C.text, minWidth: 68, textAlign: 'center' }}>{y}年{m}月</span>
+      <button onClick={next} disabled={isLatest} style={{ display: 'flex', background: 'none', border: 'none', cursor: isLatest ? 'default' : 'pointer', opacity: isLatest ? 0.25 : 1, padding: 2 }}><svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M4 2L9 6L4 10" stroke={C.textFaint} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
     </div>
   );
 }
@@ -556,18 +570,22 @@ function BusinessScreen({ go }) {
 
 // ── HOME (dashboard) ────────────────────────────────────────────────────────
 function HomeScreen({ go }) {
+  const { selYm } = React.useContext(MonthCtx);
   const s = Store.get('settings', {});
   const userType = s.userType || 'freelance';
   const settingsIncome = (s.salary||0) + (s.sideIncome||0) + (s.income||0);
   const taxRate = s.taxRate || (userType === 'employee' ? 0 : 20);
   const savingsGoal = s.savingsGoal || 0;
   const today = new Date();
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
-  const daysLeft = daysInMonth - today.getDate();
-  const fixedTotal = Store.get('fixedExpenses',[]).filter(i=>i.active).reduce((s,i)=>s+i.amount,0);
+  const [selY, selM] = selYm.split('-').map(Number);
+  const isCurrentMonth = selYm === TODAY.slice(0,7);
+  const daysInMonth = new Date(selY, selM, 0).getDate();
+  const daysLeft = isCurrentMonth ? daysInMonth - today.getDate() : 0;
+  const daysSoFar = isCurrentMonth ? today.getDate() : daysInMonth;
+  const fixedTotal = Store.get('fixedExpenses',[]).filter(i=>i.active&&i.cycle!=='yearly').reduce((s,i)=>s+i.amount,0);
 
-  const mTxns = getThisMonthTxns();
   const allTxns = Store.get('transactions',[]);
+  const mTxns = allTxns.filter(t=>t.date&&t.date.startsWith(selYm));
 
   const confirmedIncome = mTxns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
   const displayIncome = settingsIncome || confirmedIncome;
@@ -593,7 +611,6 @@ function HomeScreen({ go }) {
   const lifeBizLeft   = Math.max(0, lifeBizBudget - lifeBizSpent);
   const dailyBudget   = daysLeft > 0 ? Math.round(lifeBizLeft / daysLeft) : 0;
 
-  const daysSoFar = today.getDate();
   const dailyRate = daysSoFar > 0 ? lifeBizSpent / daysSoFar : 0;
   const projected = dailyRate * daysInMonth;
   const monthEndBalance = displayIncome - projected - taxGoal - investGoal - fixedTotal;
@@ -608,9 +625,9 @@ function HomeScreen({ go }) {
   const bizAmt    = matchAssets(['事業','法人','ビジネス']);
   const otherAmt  = Math.max(0, totalAssets - cashAmt - investAmt - bizAmt);
 
-  const recentTxns = allTxns.slice(0, 6);
-  const monthLabel = `${today.getMonth()+1}月`;
-  const dateLabel = `${today.getFullYear()}年${today.getMonth()+1}月 · ${today.getDate()}日現在`;
+  const recentTxns = allTxns.filter(t=>t.date&&t.date.startsWith(selYm)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
+  const monthLabel = `${selM}月`;
+  const dateLabel = `${selY}年${selM}月` + (isCurrentMonth ? ` · ${today.getDate()}日現在` : '');
 
   const spendPct = lifeBizBudget > 0 ? Math.round(lifeBizSpent/lifeBizBudget*100) : 0;
   const advisoryBad = spendPct >= 90 || taxShortfall > 0;
@@ -1047,10 +1064,81 @@ function IncomeForm({ onSave }) {
   );
 }
 
+function TxnEditModal({ txn, onClose, onSaved }) {
+  const [amount, setAmount] = useState(String(txn.amount));
+  const [memo,   setMemo]   = useState(txn.memo || '');
+  const [date,   setDate]   = useState(txn.date || TODAY);
+  const [cat,    setCat]    = useState(txn.category || '');
+  const [div,    setDiv]    = useState(txn.division || '生活費');
+  const [pay,    setPay]    = useState(txn.payment  || getCards()[0]?.name || '');
+  const inputStyle = { background: C.bg, borderRadius: 10, padding: '10px 14px', fontSize: 14, color: C.text, border: `1.5px solid ${C.border}`, width: '100%', outline: 'none', boxSizing: 'border-box' };
+
+  const save = () => {
+    const n = Number(amount); if (!n) return;
+    const all = Store.get('transactions', []);
+    Store.set('transactions', all.map(t => t.id === txn.id ? { ...t, amount: n, memo, date, category: cat, division: div, payment: pay } : t));
+    onSaved(); onClose();
+  };
+  const del = () => {
+    Store.set('transactions', Store.get('transactions',[]).filter(t=>t.id!==txn.id));
+    onSaved(); onClose();
+  };
+
+  return (
+    <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
+      <div style={{ background:'white', borderRadius:22, padding:32, width:480, maxWidth:'92vw', maxHeight:'90vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
+          <div style={{ fontSize:18, fontWeight:700, color:C.text }}>記録を編集</div>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:8, background:C.bg, border:'none', cursor:'pointer', fontSize:18, color:C.textMuted, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          <Field label="金額">
+            <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} style={{ ...inputStyle, fontSize:22, fontWeight:700 }} />
+          </Field>
+          {txn.type === 'expense' && (
+            <Field label="カテゴリ">
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:6 }}>
+                {EXPENSE_CATS.map(c => (
+                  <button key={c.name} onClick={()=>setCat(c.name)} style={{ background:cat===c.name?C.primary:C.bg, color:cat===c.name?'white':C.text, borderRadius:8, padding:'8px 4px', fontSize:11, fontWeight:cat===c.name?700:400, display:'flex', flexDirection:'column', alignItems:'center', gap:2, border:'none', cursor:'pointer' }}>
+                    <span style={{ fontSize:16 }}>{c.emoji}</span>{c.name}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          )}
+          {txn.type === 'expense' && (
+            <Field label="区分">
+              <div style={{ display:'flex', gap:6 }}>
+                {['生活費','事業費','税金','投資'].map(d => (
+                  <button key={d} onClick={()=>setDiv(d)} style={{ flex:1, background:div===d?C.primary:C.bg, color:div===d?'white':C.text, borderRadius:8, padding:'9px 4px', fontSize:12, fontWeight:div===d?700:400, border:'none', cursor:'pointer' }}>{d}</button>
+                ))}
+              </div>
+            </Field>
+          )}
+          <Field label="日付"><input type="date" value={date} onChange={e=>setDate(e.target.value)} style={inputStyle} /></Field>
+          {txn.type === 'expense' && (
+            <Field label="支払い">
+              <select value={pay} onChange={e=>setPay(e.target.value)} style={inputStyle}>
+                {getCards().map(c => <option key={c.id} value={c.name}>{c.name}{c.last4?` (${c.last4})`:''}</option>)}
+              </select>
+            </Field>
+          )}
+          <Field label="メモ"><input value={memo} onChange={e=>setMemo(e.target.value)} placeholder="メモを入力..." style={inputStyle} /></Field>
+          <div style={{ display:'flex', gap:8, marginTop:4 }}>
+            <button onClick={save} style={{ flex:1, background:C.primary, color:'white', borderRadius:12, padding:'12px', fontSize:14, fontWeight:700, border:'none', cursor:'pointer' }}>保存</button>
+            <button onClick={del}  style={{ background:'#FEE2E2', color:'#DC2626', borderRadius:12, padding:'12px 16px', fontSize:14, fontWeight:700, border:'none', cursor:'pointer' }}>削除</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InputScreen({ go }) {
   const [mode, setMode] = useState('expense');
   const [tick, setTick] = useState(0);
   const onSave = () => setTick(v => v + 1);
+  const [editTxn, setEditTxn] = useState(null);
   const recent = Store.get('transactions', []).slice(0, 8);
 
   return (
@@ -1069,7 +1157,7 @@ function InputScreen({ go }) {
           {recent.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '32px 0', color: C.textFaint, fontSize: 13 }}>まだ記録がありません</div>
           ) : recent.map(r => (
-            <div key={r.id} className="lift" style={{ background: C.bg, borderRadius: 14, padding: '13px 15px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 9 }}>
+            <div key={r.id} onClick={() => setEditTxn(r)} className="lift" style={{ background: C.bg, borderRadius: 14, padding: '13px 15px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 9, cursor: 'pointer' }}>
               <span style={{ fontSize: 20 }}>{r.type === 'income' ? '💰' : (CAT_EMOJI[r.category] || '📋')}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.memo || r.source || r.category}</div>
@@ -1077,9 +1165,11 @@ function InputScreen({ go }) {
                 {r.payment && <div style={{ marginTop: 4 }}><CardBadge name={r.payment} /></div>}
               </div>
               <div style={{ fontSize: 14, fontWeight: 700, color: r.type === 'income' ? C.primary : C.text, fontFeatureSettings: tnum, whiteSpace: 'nowrap' }}>{r.type === 'income' ? '+' : '-'}¥{fmt(r.amount)}</div>
+              <div style={{ fontSize: 11, color: C.textFaint }}>✎</div>
             </div>
           ))}
         </Card>
+        {editTxn && <TxnEditModal txn={editTxn} onClose={() => setEditTxn(null)} onSaved={onSave} />}
       </div>
     </Shell>
   );
@@ -1087,6 +1177,7 @@ function InputScreen({ go }) {
 
 // ── BUDGET ──────────────────────────────────────────────────────────────────
 function BudgetScreen({ go }) {
+  const { selYm } = React.useContext(MonthCtx);
   const s = Store.get('settings', {});
   const userType = s.userType || 'freelance';
   const income = (s.salary || 0) + (s.sideIncome || 0) + (s.income || 0);
@@ -1099,7 +1190,7 @@ function BudgetScreen({ go }) {
   const [editKey, setEditKey] = useState(null);
   const [editVal, setEditVal] = useState('');
 
-  const txns = getThisMonthTxns();
+  const txns = Store.get('transactions',[]).filter(t=>t.date&&t.date.startsWith(selYm));
   const usedMap = {
     '生活費':  sumDiv(txns, '生活費'),
     '事業費':  sumDiv(txns, '事業費'),
@@ -1244,17 +1335,20 @@ function BudgetScreen({ go }) {
 
 // ── TAX & SAVINGS ─────────────────────────────────────────────────────────
 function TaxScreen({ go }) {
+  const { selYm } = React.useContext(MonthCtx);
   const s = Store.get('settings', {});
   const income = (s.salary || 0) + (s.sideIncome || 0) + (s.income || 0);
   const taxRate = s.taxRate || 20;
   const goalAmt = Math.round(income * taxRate / 100);
-  const txns = getThisMonthTxns();
+  const txns = Store.get('transactions',[]).filter(t=>t.date&&t.date.startsWith(selYm));
   const savedAmt = sumDiv(txns, '税金');
   const pct = goalAmt > 0 ? Math.min(100, Math.round(savedAmt / goalAmt * 100)) : 0;
   const dashOffset = Math.round(327 * (1 - pct / 100));
   const remaining = Math.max(0, goalAmt - savedAmt);
   const today = new Date();
-  const daysLeft = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate() - today.getDate();
+  const [selY, selM] = selYm.split('-').map(Number);
+  const isCurrentMonth = selYm === TODAY.slice(0,7);
+  const daysLeft = isCurrentMonth ? new Date(selY, selM, 0).getDate() - today.getDate() : 0;
 
   const allTxns = Store.get('transactions', []);
   const history = Array.from({length: 4}, (_, i) => {
@@ -1727,7 +1821,7 @@ function FixedExpensesScreen({ go }) {
 
   const [items, setItems] = useState(() => Store.get('fixedExpenses', []));
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', amount: '', cat: 'rent', payment: 'カード', cycle: 'monthly', day: '毎月1日', month: thisMonth });
+  const [form, setForm] = useState({ name: '', amount: '', cat: 'rent', payment: 'カード', cycle: 'monthly', day: '毎月1日', month: thisMonth, division: '生活費' });
 
   const [regSet, setRegSet] = useState(() => new Set(
     Store.get('transactions',[]).filter(t=>t.source==='fixed'&&t.date&&t.date.startsWith(thisMonthStr())).map(t=>t.fixedId)
@@ -1740,7 +1834,7 @@ function FixedExpensesScreen({ go }) {
     if (!form.name || !form.amount) return;
     const next = [...items, { id: Date.now(), ...form, amount: Number(form.amount), active: true }];
     setItems(next); Store.set('fixedExpenses', next);
-    setForm({ name: '', amount: '', cat: 'rent', payment: 'カード', cycle: 'monthly', day: '毎月1日', month: thisMonth });
+    setForm({ name: '', amount: '', cat: 'rent', payment: 'カード', cycle: 'monthly', day: '毎月1日', month: thisMonth, division: '生活費' });
     setShowForm(false);
   };
   const toggle = id => { const n = items.map(i => i.id === id ? {...i, active: !i.active} : i); setItems(n); Store.set('fixedExpenses', n); };
@@ -1757,7 +1851,7 @@ function FixedExpensesScreen({ go }) {
     const existing = Store.get('transactions', []);
     const newTxns = unregistered.map((item, idx) => ({
       id: Date.now() + idx, type: 'expense', amount: item.amount, category: 'その他',
-      division: '生活費', payment: item.payment, memo: item.name,
+      division: item.division || '生活費', payment: item.payment, memo: item.name,
       date: TODAY, source: 'fixed', fixedId: item.id,
     }));
     Store.set('transactions', [...existing, ...newTxns]);
@@ -1828,6 +1922,14 @@ function FixedExpensesScreen({ go }) {
                       <button key={c.id} onClick={() => setForm(f=>({...f, cat: c.id}))} style={{ background: form.cat === c.id ? c.color : C.bg, color: form.cat === c.id ? 'white' : C.text, borderRadius: 10, padding: '8px 10px', fontSize: 12, fontWeight: form.cat === c.id ? 700 : 400, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span>{c.emoji}</span>{c.name}
                       </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6, fontWeight: 600 }}>用途区分</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {['生活費','事業費'].map(d => (
+                      <button key={d} onClick={() => setForm(f=>({...f, division:d}))} style={{ flex:1, background: form.division===d ? C.primary : C.bg, color: form.division===d ? 'white' : C.text, borderRadius:10, padding:'9px', fontSize:13, fontWeight:700, border:'none', cursor:'pointer' }}>{d}</button>
                     ))}
                   </div>
                 </div>
@@ -1908,6 +2010,7 @@ function FixedExpensesScreen({ go }) {
                         {cat.name} · {item.cycle === 'yearly' ? `年1回（${item.month}月）` : item.day} · {item.payment}
                       </div>
                     </div>
+                    {item.division === '事業費' && <span style={{ fontSize: 10, fontWeight: 700, color: C.primary, background: C.primaryLight, borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>事業費</span>}
                     {item.cycle === 'yearly' && <span style={{ fontSize: 10, fontWeight: 700, color: C.invest, background: C.invest+'18', borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>年払</span>}
                     {item.active && registered && <span style={{ fontSize: 10, fontWeight: 700, color: C.primary, background: C.primaryLight, borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>今月登録済</span>}
                     <div style={{ fontSize: 16, fontWeight: 700, color: item.active ? C.text : C.textMuted, fontFeatureSettings: tnum, flexShrink: 0 }}>¥{fmt(item.amount)}</div>
@@ -2254,6 +2357,7 @@ function App() {
   const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [screen, setScreen]   = useState('home');
+  const [selYm, setSelYm]     = useState(TODAY.slice(0,7));
   const go = useCallback(s => { setScreen(s); window.scrollTo(0, 0); }, []);
 
   useEffect(() => {
@@ -2308,18 +2412,20 @@ function App() {
     go('home');
   }} />;
 
+  let content;
   switch (screen) {
-    case 'input':    return <InputScreen    go={go} />;
-    case 'business': return <BusinessScreen go={go} />;
-    case 'budget':   return <BudgetScreen   go={go} />;
-    case 'tax':      return <TaxScreen      go={go} />;
-    case 'report':   return <ReportScreen   go={go} />;
-    case 'networth': return <NetWorthScreen    go={go} />;
-    case 'fixed':    return <FixedExpensesScreen go={go} />;
-    case 'cards':    return <CardsScreen        go={go} />;
-    case 'settings': return <SettingsScreen go={go} user={user} onLogout={onLogout} />;
-    default:         return <HomeScreen     go={go} />;
+    case 'input':    content = <InputScreen    go={go} />; break;
+    case 'business': content = <BusinessScreen go={go} />; break;
+    case 'budget':   content = <BudgetScreen   go={go} />; break;
+    case 'tax':      content = <TaxScreen      go={go} />; break;
+    case 'report':   content = <ReportScreen   go={go} />; break;
+    case 'networth': content = <NetWorthScreen    go={go} />; break;
+    case 'fixed':    content = <FixedExpensesScreen go={go} />; break;
+    case 'cards':    content = <CardsScreen        go={go} />; break;
+    case 'settings': content = <SettingsScreen go={go} user={user} onLogout={onLogout} />; break;
+    default:         content = <HomeScreen     go={go} />;
   }
+  return <MonthCtx.Provider value={{ selYm, setSelYm }}>{content}</MonthCtx.Provider>;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
