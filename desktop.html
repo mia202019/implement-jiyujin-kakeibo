@@ -72,7 +72,12 @@ function resolveDate(d) { if (d==='今日') return TODAY; if (d==='昨日') retu
 function thisMonthStr() { return TODAY.slice(0,7); }
 function getThisMonthTxns() { const ym=thisMonthStr(); return Store.get('transactions',[]).filter(t=>t.date&&t.date.startsWith(ym)); }
 function sumDiv(txns, div) { return txns.filter(t=>t.type==='expense'&&t.division===div).reduce((s,t)=>s+t.amount,0); }
-const CAT_EMOJI = {'食費':'🛒','交通費':'🚌','日用品':'🧴','材料費':'🎨','機材・ソフト':'💻','外食':'🍜','美容・衣服':'👗','その他':'📋','売上':'💰'};
+const CAT_EMOJI = {
+  '食費':'🛒', '外食':'🍜', '交通費':'🚌', '日用品':'🧴',
+  '美容・衣服':'👗', '医療・健康':'💊', '通信費':'📱', '趣味・娯楽':'🎮',
+  '材料費':'🎨', '機材・ソフト':'💻', '出店料':'🏪', '交際費':'🥂',
+  '教育・学習':'📚', 'その他':'📋', '売上':'💰',
+};
 
 // ── Reusable pieces ─────────────────────────────────────────────────────────
 function Card({ children, style = {}, hover = false }) {
@@ -232,14 +237,15 @@ function MonthPill() {
 
 // ── Business (事業管理) ──────────────────────────────────────────────────────
 const BIZ_CATS = [
-  { id: 'materials', name: '材料費',     color: '#097D60', emoji: '📦' },
-  { id: 'equipment', name: '機材・ソフト', color: '#4A6898', emoji: '💻' },
-  { id: 'outsource', name: '外注費',     color: '#6A5E9C', emoji: '👥' },
-  { id: 'transport', name: '交通費',     color: '#C8748E', emoji: '🚃' },
-  { id: 'ad',        name: '広告宣伝',   color: '#E8935F', emoji: '📢' },
-  { id: 'comms',     name: '通信費',     color: '#5B7B6F', emoji: '📡' },
-  { id: 'books',     name: '書籍・学習', color: '#8B5CF6', emoji: '📚' },
-  { id: 'other',     name: 'その他',     color: '#9CA3AF', emoji: '📋' },
+  { id: 'materials',     name: '材料費',       color: '#097D60', emoji: '🎨' },
+  { id: 'equipment',     name: '機材・ソフト', color: '#4A6898', emoji: '💻' },
+  { id: 'booth',         name: '出店料',       color: '#E8935F', emoji: '🏪' },
+  { id: 'entertainment', name: '交際費',       color: '#C8748E', emoji: '🥂' },
+  { id: 'outsource',     name: '外注費',       color: '#6A5E9C', emoji: '👥' },
+  { id: 'transport',     name: '交通費',       color: '#5B7B6F', emoji: '🚃' },
+  { id: 'books',         name: '教育・学習',   color: '#8B5CF6', emoji: '📚' },
+  { id: 'ad',            name: '広告宣伝',     color: '#DC6B6B', emoji: '📢' },
+  { id: 'other',         name: 'その他',       color: '#9CA3AF', emoji: '📋' },
 ];
 
 function BusinessScreen({ go }) {
@@ -516,20 +522,39 @@ function Seg({ options, value, set }) {
   );
 }
 
+const INVEST_TYPES = ['積立NISA','一般NISA','iDeCo','株式・投資信託','貯蓄・その他'];
+const INCOME_PRESETS = ['ハンドメイド','WEBデザイン','ライティング','ネット販売','給与','アルバイト'];
+const EXPENSE_CATS = [
+  { name:'食費',       emoji:'🛒', group:'life' },
+  { name:'外食',       emoji:'🍜', group:'life' },
+  { name:'交通費',     emoji:'🚌', group:'life' },
+  { name:'日用品',     emoji:'🧴', group:'life' },
+  { name:'美容・衣服', emoji:'👗', group:'life' },
+  { name:'医療・健康', emoji:'💊', group:'life' },
+  { name:'通信費',     emoji:'📱', group:'life' },
+  { name:'趣味・娯楽', emoji:'🎮', group:'life' },
+  { name:'材料費',     emoji:'🎨', group:'biz'  },
+  { name:'機材・ソフト',emoji:'💻', group:'biz'  },
+  { name:'出店料',     emoji:'🏪', group:'biz'  },
+  { name:'交際費',     emoji:'🥂', group:'biz'  },
+  { name:'教育・学習', emoji:'📚', group:'biz'  },
+  { name:'その他',     emoji:'📋', group:'other' },
+];
+
 function ExpenseForm({ onSave }) {
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('今日');
   const [cat, setCat] = useState('食費');
   const [div, setDiv] = useState('生活費');
+  const [investType, setInvestType] = useState('積立NISA');
   const [pay, setPay] = useState('カード');
   const [memo, setMemo] = useState('');
-  const cats = ['食費','交通費','日用品','材料費','機材・ソフト','外食','美容・衣服','その他'];
   const inputStyle = { background: C.bg, borderRadius: 12, padding: '13px 16px', fontSize: 14, color: C.text, border: 'none', width: '100%', outline: 'none' };
 
   const save = () => {
     const n = parseInt(amount);
     if (!n || n <= 0) return;
-    const txn = { id: Date.now(), type: 'expense', amount: n, category: cat, division: div, payment: pay, memo, date: resolveDate(date) };
+    const txn = { id: Date.now(), type: 'expense', amount: n, category: cat, division: div, payment: pay, memo, date: resolveDate(date), ...(div==='投資' ? {investType} : {}) };
     Store.set('transactions', [txn, ...Store.get('transactions', [])]);
     setAmount(''); setMemo(''); setDate('今日'); setCat('食費');
     onSave && onSave();
@@ -554,15 +579,28 @@ function ExpenseForm({ onSave }) {
       </Field>
 
       <Field label="カテゴリ">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 10 }}>
-          {cats.map(c => {
-            const active = cat === c, isOther = c === 'その他';
+        <div style={{ fontSize: 10, fontWeight: 600, color: C.textFaint, letterSpacing: '0.06em', marginBottom: 8 }}>生活費 ─────────────────</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 8, marginBottom: 14 }}>
+          {EXPENSE_CATS.filter(c => c.group === 'life').map(c => {
+            const active = cat === c.name;
             return (
-              <button key={c} onClick={() => setCat(c)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <div style={{ width: 52, height: 52, background: isOther ? C.bg : (active ? C.primary : C.infoBg), borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: active ? '0 4px 12px rgba(9,125,96,0.3)' : 'none', border: isOther ? `1.5px dashed ${C.border}` : 'none', fontSize: 18 }}>
-                  {isOther ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2V14M2 8H14" stroke={C.textFaint} strokeWidth="1.8" strokeLinecap="round"/></svg> : CAT_EMOJI[c]}
+              <button key={c.name} onClick={() => { setCat(c.name); if (c.group === 'biz' && div === '生活費') setDiv('事業費'); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                <div style={{ width: 48, height: 48, background: active ? C.primary : C.infoBg, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: active ? '0 4px 12px rgba(9,125,96,0.3)' : 'none', fontSize: 18 }}>{c.emoji}</div>
+                <span style={{ fontSize: 9.5, fontWeight: active ? 600 : 500, color: active ? C.primary : C.textMed, whiteSpace: 'nowrap' }}>{c.name}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 10, fontWeight: 600, color: C.textFaint, letterSpacing: '0.06em', marginBottom: 8 }}>仕事・クリエイター ──────</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 8 }}>
+          {EXPENSE_CATS.filter(c => c.group !== 'life').map(c => {
+            const active = cat === c.name, isOther = c.name === 'その他';
+            return (
+              <button key={c.name} onClick={() => { setCat(c.name); if (c.group === 'biz' && div === '生活費') setDiv('事業費'); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                <div style={{ width: 48, height: 48, background: isOther ? C.bg : (active ? '#4A6898' : '#EDF0F8'), borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: active ? '0 4px 12px rgba(74,104,152,0.3)' : 'none', border: isOther ? `1.5px dashed ${C.border}` : 'none', fontSize: 18 }}>
+                  {isOther ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2V14M2 8H14" stroke={C.textFaint} strokeWidth="1.8" strokeLinecap="round"/></svg> : c.emoji}
                 </div>
-                <span style={{ fontSize: 10, fontWeight: active ? 600 : 500, color: active ? C.primary : C.textMed, whiteSpace: 'nowrap' }}>{c}</span>
+                <span style={{ fontSize: 9.5, fontWeight: active ? 600 : 500, color: active ? '#4A6898' : C.textMed, whiteSpace: 'nowrap' }}>{c.name}</span>
               </button>
             );
           })}
@@ -570,7 +608,19 @@ function ExpenseForm({ onSave }) {
       </Field>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
-        <Field label="区分"><Seg options={['生活費','事業費','税金','投資']} value={div} set={setDiv} /></Field>
+        <Field label="区分">
+          <Seg options={['生活費','事業費','税金','投資']} value={div} set={setDiv} />
+          {div === '投資' && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 8 }}>投資の種類</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {INVEST_TYPES.map(t => (
+                  <button key={t} onClick={() => setInvestType(t)} style={{ background: investType===t ? C.invest : C.bg, color: investType===t ? 'white' : C.textMuted, borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: investType===t ? 700 : 400, border: `1px solid ${investType===t ? C.invest : C.border}` }}>{t}</button>
+                ))}
+              </div>
+            </div>
+          )}
+        </Field>
         <Field label="支払い方法">
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {['カード','現金','PayPay','その他'].map(p => (
@@ -621,7 +671,14 @@ function IncomeForm({ onSave }) {
       </Field>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 22 }}>
-        <Field label="収入源"><input value={source} onChange={e => setSource(e.target.value)} placeholder="収入源を入力..." style={inputStyle} /></Field>
+        <Field label="収入源">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {INCOME_PRESETS.map(p => (
+              <button key={p} onClick={() => setSource(p)} style={{ background: source===p ? C.primary : C.bg, color: source===p ? 'white' : C.textMuted, borderRadius: 999, padding: '6px 12px', fontSize: 11, fontWeight: source===p ? 700 : 400, border: `1px solid ${source===p ? C.primary : C.border}` }}>{p}</button>
+            ))}
+          </div>
+          <input value={source} onChange={e => setSource(e.target.value)} placeholder="またはここに入力..." style={inputStyle} />
+        </Field>
         <Field label="入金日">
           <div style={{ display: 'flex', gap: 8 }}>
             {['今日','昨日','日付'].map(d => (
@@ -853,6 +910,43 @@ function TaxScreen({ go }) {
           </div>
         ))}
       </Card>
+
+      {(() => {
+        const monthlyInvest = (() => {
+          const s = Store.get('settings', {});
+          const budgets = Store.get('budgets', {});
+          return budgets['投資'] || s.savingsGoal || 0;
+        })();
+        if (monthlyInvest <= 0) return null;
+        const fv = (pmt, rate, years) => Math.round(pmt * ((Math.pow(1 + rate/12, years*12) - 1) / (rate/12)));
+        const r5 = 0.05;
+        const rows = [
+          { label: '10年後', val: fv(monthlyInvest, r5, 10) },
+          { label: '20年後', val: fv(monthlyInvest, r5, 20) },
+          { label: '30年後', val: fv(monthlyInvest, r5, 30) },
+        ];
+        return (
+          <Card style={{ marginTop: 20, background: 'linear-gradient(135deg, #EDE8F8 0%, #E8F5F0 100%)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>将来の資産シミュレーション</div>
+                <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>毎月 ¥{fmt(monthlyInvest)} 積立 × 年利5%（複利）</div>
+              </div>
+              <span style={{ fontSize: 18 }}>📈</span>
+            </div>
+            <div style={{ display: 'flex', gap: 16 }}>
+              {rows.map(r => (
+                <div key={r.label} style={{ flex: 1, background: 'white', borderRadius: 14, padding: '16px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 6 }}>{r.label}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: C.invest, fontFeatureSettings: tnum, letterSpacing: '-0.5px' }}>¥{fmt(r.val)}</div>
+                  <div style={{ fontSize: 10, color: C.textFaint, marginTop: 3 }}>元本 ¥{fmt(monthlyInvest * (r.label==='10年後'?120:r.label==='20年後'?240:360))}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 12, fontSize: 11, color: C.textFaint, lineHeight: 1.6 }}>※ 参考値。実際の運用利回りは変動します。NISA・iDeCo口座では利益が非課税になります。</div>
+          </Card>
+        );
+      })()}
     </Shell>
   );
 }
@@ -1390,9 +1484,10 @@ function SettingsScreen({ go, user, onLogout }) {
 function UserTypeScreen({ onSelect }) {
   const [sel, setSel] = useState(null);
   const types = [
+    { id: 'creator',   emoji: '🎨', title: 'クリエイター',   desc: 'ハンドメイド・デザイン・アートなど創作で収入を得ている' },
     { id: 'freelance', emoji: '💼', title: 'フリーランス',   desc: '個人事業主・フリーランスとして活動中' },
-    { id: 'employee',  emoji: '🏢', title: '会社員',         desc: '会社に勤めて給与をもらっている' },
     { id: 'hybrid',    emoji: '⚡', title: '会社員 + 副業',  desc: '給与と副収入の両方がある' },
+    { id: 'employee',  emoji: '🏢', title: '会社員',         desc: '会社に勤めて給与をもらっている' },
   ];
   return (
     <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

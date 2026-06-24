@@ -79,7 +79,30 @@ const YESTERDAY = new Date(Date.now()-86400000).toISOString().slice(0,10);
 function resolveDate(d) { if (d==='今日') return TODAY; if (d==='昨日') return YESTERDAY; return d; }
 function getThisMonthTxns() { const ym=TODAY.slice(0,7); return Store.get('transactions',[]).filter(t=>t.date&&t.date.startsWith(ym)); }
 function sumDiv(txns, div) { return txns.filter(t=>t.type==='expense'&&t.division===div).reduce((s,t)=>s+t.amount,0); }
-const CAT_EMOJI = {'食費':'🛒','交通費':'🚌','日用品':'🧴','材料費':'🎨','機材・ソフト':'💻','外食':'🍜','美容・衣服':'👗','その他':'📋','売上':'💰'};
+const CAT_EMOJI = {
+  '食費':'🛒', '外食':'🍜', '交通費':'🚌', '日用品':'🧴',
+  '美容・衣服':'👗', '医療・健康':'💊', '通信費':'📱', '趣味・娯楽':'🎮',
+  '材料費':'🎨', '機材・ソフト':'💻', '出店料':'🏪', '交際費':'🥂',
+  '教育・学習':'📚', 'その他':'📋', '売上':'💰',
+};
+const EXPENSE_CATS = [
+  { name:'食費',       emoji:'🛒', group:'life' },
+  { name:'外食',       emoji:'🍜', group:'life' },
+  { name:'交通費',     emoji:'🚌', group:'life' },
+  { name:'日用品',     emoji:'🧴', group:'life' },
+  { name:'美容・衣服', emoji:'👗', group:'life' },
+  { name:'医療・健康', emoji:'💊', group:'life' },
+  { name:'通信費',     emoji:'📱', group:'life' },
+  { name:'趣味・娯楽', emoji:'🎮', group:'life' },
+  { name:'材料費',     emoji:'🎨', group:'biz'  },
+  { name:'機材・ソフト',emoji:'💻', group:'biz'  },
+  { name:'出店料',     emoji:'🏪', group:'biz'  },
+  { name:'交際費',     emoji:'🥂', group:'biz'  },
+  { name:'教育・学習', emoji:'📚', group:'biz'  },
+  { name:'その他',     emoji:'📋', group:'other' },
+];
+const INVEST_TYPES = ['積立NISA','一般NISA','iDeCo','株式・投資信託','貯蓄・その他'];
+const INCOME_PRESETS = ['ハンドメイド','WEBデザイン','ライティング','ネット販売','給与','アルバイト'];
 
 // ── Shared components ──────────────────────────────────────────────────────
 function Card({ children, style = {} }) {
@@ -194,9 +217,10 @@ function LoginScreen({ onLogin, onSkip }) {
 function UserTypeScreen({ onSelect }) {
   const [sel, setSel] = useState(null);
   const types = [
-    { id: 'freelance', emoji: '💼', title: 'フリーランス',     desc: '個人事業主・フリーランスとして活動中' },
-    { id: 'employee',  emoji: '🏢', title: '会社員',           desc: '会社に勤めて給与をもらっている' },
-    { id: 'hybrid',    emoji: '⚡', title: '会社員 + 副業',    desc: '給与と副収入の両方がある' },
+    { id: 'creator',   emoji: '🎨', title: 'クリエイター',   desc: 'ハンドメイド・デザイン・アートなど創作で収入を得ている' },
+    { id: 'freelance', emoji: '💼', title: 'フリーランス',   desc: '個人事業主・フリーランスとして活動中' },
+    { id: 'hybrid',    emoji: '⚡', title: '会社員 + 副業',  desc: '給与と副収入の両方がある' },
+    { id: 'employee',  emoji: '🏢', title: '会社員',         desc: '会社に勤めて給与をもらっている' },
   ];
   return (
     <Screen bg="linear-gradient(160deg, #EFF8F5 0%, #D4E8E3 100%)">
@@ -711,15 +735,14 @@ function ExpenseInput({ onBack, onDone }) {
   const [date,   setDate]   = useState('今日');
   const [cat,    setCat]    = useState('食費');
   const [div,    setDiv]    = useState('生活費');
+  const [investType, setInvestType] = useState('積立NISA');
   const [pay,    setPay]    = useState('カード');
   const [memo,   setMemo]   = useState('');
-
-  const cats = ['食費','交通費','日用品','材料費','機材・ソフト','外食','美容・衣服','その他'];
 
   const save = () => {
     const n = parseInt(amount);
     if (!n || n <= 0) return;
-    const txn = { id: Date.now(), type: 'expense', amount: n, category: cat, division: div, payment: pay, memo, date: resolveDate(date) };
+    const txn = { id: Date.now(), type: 'expense', amount: n, category: cat, division: div, payment: pay, memo, date: resolveDate(date), ...(div==='投資' ? {investType} : {}) };
     Store.set('transactions', [txn, ...Store.get('transactions', [])]);
     onDone();
   };
@@ -756,26 +779,29 @@ function ExpenseInput({ onBack, onDone }) {
 
         {/* Category */}
         <Card style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 14 }}>カテゴリ</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-            {cats.map(c => {
-              const active = cat === c;
-              const isOther = c === 'その他';
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 10 }}>カテゴリ</div>
+          <div style={{ fontSize: 10, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>生活費</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
+            {EXPENSE_CATS.filter(c => c.group === 'life').map(c => {
+              const active = cat === c.name;
               return (
-                <button key={c} onClick={() => setCat(c)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                  <div style={{ width: 52, height: 52, background: isOther ? C.bg : (active ? C.primary : C.infoBg), borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: active ? '0 4px 12px rgba(9,125,96,0.3)' : 'none', border: isOther ? `1.5px dashed ${C.border}` : 'none' }}>
-                    <span style={{ fontSize: 18 }}>
-                      {c === '食費' && '🛒'}
-                      {c === '交通費' && '🚌'}
-                      {c === '日用品' && '🧴'}
-                      {c === '材料費' && '🎨'}
-                      {c === '機材・ソフト' && '💻'}
-                      {c === '外食' && '🍜'}
-                      {c === '美容・衣服' && '👗'}
-                      {c === 'その他' && <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2V14M2 8H14" stroke={C.textFaint} strokeWidth="1.8" strokeLinecap="round"/></svg>}
-                    </span>
+                <button key={c.name} onClick={() => setCat(c.name)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 48, height: 48, background: active ? C.primary : C.infoBg, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: active ? '0 4px 12px rgba(9,125,96,0.3)' : 'none', fontSize: 20 }}>{c.emoji}</div>
+                  <span style={{ fontSize: 9, fontWeight: active ? 600 : 500, color: active ? C.primary : C.textMed, lineHeight: 1.2, textAlign: 'center' }}>{c.name}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 10, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>仕事・クリエイター</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            {EXPENSE_CATS.filter(c => c.group !== 'life').map(c => {
+              const active = cat === c.name, isOther = c.name === 'その他';
+              return (
+                <button key={c.name} onClick={() => { setCat(c.name); if (c.group === 'biz' && div === '生活費') setDiv('事業費'); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 48, height: 48, background: isOther ? C.bg : (active ? '#4A6898' : '#EDF0F8'), borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: active ? '0 4px 12px rgba(74,104,152,0.3)' : 'none', border: isOther ? `1.5px dashed ${C.border}` : 'none', fontSize: 20 }}>
+                    {isOther ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2V14M2 8H14" stroke={C.textFaint} strokeWidth="1.8" strokeLinecap="round"/></svg> : c.emoji}
                   </div>
-                  <span style={{ fontSize: 10, fontWeight: active ? 600 : 500, color: active ? C.primary : C.textMed }}>{c}</span>
+                  <span style={{ fontSize: 9, fontWeight: active ? 600 : 500, color: active ? '#4A6898' : C.textMed, lineHeight: 1.2, textAlign: 'center' }}>{c.name}</span>
                 </button>
               );
             })}
@@ -792,6 +818,16 @@ function ExpenseInput({ onBack, onDone }) {
               </button>
             ))}
           </div>
+          {div === '投資' && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 8 }}>投資の種類</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {INVEST_TYPES.map(t => (
+                  <button key={t} onClick={() => setInvestType(t)} style={{ background: investType===t ? C.invest : C.bg, color: investType===t ? 'white' : C.textMuted, borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: investType===t ? 700 : 400, border: `1px solid ${investType===t ? C.invest : C.border}` }}>{t}</button>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Payment + Memo */}
@@ -875,8 +911,13 @@ function IncomeInput({ onBack, onDone }) {
 
         {/* Source + Date */}
         <Card style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>収入源</div>
-          <input value={source} onChange={e => setSource(e.target.value)} placeholder="収入源を入力..."
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 10 }}>収入源</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+            {INCOME_PRESETS.map(p => (
+              <button key={p} onClick={() => setSource(p)} style={{ background: source===p ? C.primary : C.bg, color: source===p ? 'white' : C.textMuted, borderRadius: 999, padding: '6px 12px', fontSize: 11, fontWeight: source===p ? 700 : 400, border: `1px solid ${source===p ? C.primary : C.border}` }}>{p}</button>
+            ))}
+          </div>
+          <input value={source} onChange={e => setSource(e.target.value)} placeholder="またはここに入力..."
             style={{ background: C.bg, borderRadius: 12, padding: '13px 16px', fontSize: 14, color: C.text, border: 'none', width: '100%', outline: 'none', marginBottom: 16 }} />
           <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>入金日</div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -1057,10 +1098,34 @@ function TaxScreen({ go }) {
         </Card>
 
         {/* Tips */}
-        <div style={{ background: C.primaryLight, borderRadius: 18, padding: 18 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.primary, marginBottom: 8 }}>フリーランスの税金ガイド</div>
+        <div style={{ background: C.primaryLight, borderRadius: 18, padding: 18, marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.primary, marginBottom: 8 }}>税金ガイド</div>
           <div style={{ fontSize: 12, color: C.textMed, lineHeight: 1.8 }}>年間所得400万円の場合、所得税+住民税の目安は約25〜30%です。消費税の納付義務がある場合はさらに10%の積み立てが必要です。</div>
         </div>
+
+        {/* Future simulation */}
+        {(() => {
+          const s = Store.get('settings', {});
+          const budgets = Store.get('budgets', {});
+          const monthlyInvest = budgets['投資'] || s.savingsGoal || 0;
+          if (!monthlyInvest) return null;
+          const fv = (pmt, rate, yrs) => Math.round(pmt * ((Math.pow(1 + rate/12, yrs*12) - 1) / (rate/12)));
+          return (
+            <Card style={{ background: 'linear-gradient(135deg, #EDE8F8 0%, #E8F5F0 100%)' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 }}>将来の資産シミュレーション 📈</div>
+              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>毎月 ¥{fmt(monthlyInvest)} × 年利5%複利</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {[{l:'10年後',y:10},{l:'20年後',y:20},{l:'30年後',y:30}].map(r => (
+                  <div key={r.l} style={{ background: 'white', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600, marginBottom: 4 }}>{r.l}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: C.invest, fontFeatureSettings: "'tnum'" }}>¥{fmt(fv(monthlyInvest, 0.05, r.y))}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 10, color: C.textFaint, marginTop: 10, lineHeight: 1.5 }}>※ 参考値。NISA・iDeCoでは利益が非課税。</div>
+            </Card>
+          );
+        })()}
       </div>
 
       <BottomNav active="budget" go={go} />
