@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js" crossorigin="anonymous"></script>
-  <script src="https://accounts.google.com/gsi/client" async></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; background: #B2CEC8; }
@@ -46,11 +46,39 @@
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useCallback, useEffect } = React;
-const CLIENT_ID = '954710101476-go30mqdlnjbu24qji456qkjhe318bf9q.apps.googleusercontent.com';
-function parseJwt(t) { return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); }
+const SUPABASE_URL = 'https://hrhoncnowgbqzngdxlmo.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_I0l7ZswnKlT_L1JKdcLMlg_qcTuvxnz';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const DB = {
+  userId: null,
+  timer: null,
+  async init(userId) {
+    this.userId = userId;
+    try {
+      const { data } = await sb.from('user_data').select('store').eq('user_id', userId).single();
+      if (data?.store) {
+        Object.entries(data.store).forEach(([k, v]) => { if (v != null) localStorage.setItem(k, JSON.stringify(v)); });
+      }
+    } catch(e) {}
+  },
+  schedule() {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.flush(), 1500);
+  },
+  async flush() {
+    if (!this.userId) return;
+    const store = {};
+    ['transactions','fixedExpenses','budgets','networth','settings','cards'].forEach(k => {
+      try { const v = localStorage.getItem(k); if (v) store[k] = JSON.parse(v); } catch(e) {}
+    });
+    try { await sb.from('user_data').upsert({ user_id: this.userId, store, updated_at: new Date().toISOString() }); } catch(e) {}
+  }
+};
+
 const Store = {
   get: (key, def={}) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; } },
-  set: (key, val) => localStorage.setItem(key, JSON.stringify(val)),
+  set: (key, val) => { localStorage.setItem(key, JSON.stringify(val)); DB.schedule(); },
 };
 
 function triggerBackupDownload() {
@@ -225,24 +253,15 @@ function Screen({ children, bg = C.bg }) {
 }
 
 // ── 01 Login ───────────────────────────────────────────────────────────────
-function LoginScreen({ onLogin, onSkip }) {
-  useEffect(() => {
-    const init = () => {
-      if (!window.google) { setTimeout(init, 200); return; }
-      google.accounts.id.initialize({
-        client_id: CLIENT_ID,
-        callback: ({ credential }) => {
-          const p = parseJwt(credential);
-          onLogin({ name: p.name, email: p.email, picture: p.picture });
-        }
-      });
-      google.accounts.id.renderButton(document.getElementById('g-btn-mobile'), {
-        theme: 'outline', size: 'large', width: 300, locale: 'ja'
-      });
-    };
-    init();
-  }, []);
-
+function LoginScreen({ onSkip }) {
+  const [loading, setLoading] = useState(false);
+  const handleGoogle = async () => {
+    setLoading(true);
+    await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + window.location.pathname }
+    });
+  };
   return (
     <Screen bg="linear-gradient(160deg, #EFF8F5 0%, #D4E8E3 55%, #D4E8E3 100%)">
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 40px' }}>
@@ -253,10 +272,12 @@ function LoginScreen({ onLogin, onSkip }) {
         <div style={{ fontSize: 15, color: C.textMed, textAlign: 'center', lineHeight: 1.75, marginBottom: 6 }}>自由になるために、</div>
         <div style={{ fontSize: 15, color: C.textMed, textAlign: 'center', lineHeight: 1.75 }}>まず家計管理から。</div>
       </div>
-
       <div style={{ padding: '0 28px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-        <div id="g-btn-mobile" />
-        <button onClick={onSkip} style={{ fontSize: 13, color: C.textMuted }}>アカウントなしでお試し →</button>
+        <button onClick={handleGoogle} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'white', border: '1.5px solid #dadce0', borderRadius: 8, padding: '13px 24px', fontSize: 14, fontWeight: 500, color: '#3c4043', cursor: loading ? 'default' : 'pointer', width: 300, justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z"/></svg>
+          {loading ? '処理中...' : 'Googleでログイン'}
+        </button>
+        <button onClick={onSkip} style={{ fontSize: 13, color: C.textMuted, background: 'none', border: 'none', cursor: 'pointer' }}>アカウントなしでお試し →</button>
       </div>
       <div style={{ textAlign: 'center', padding: '0 28px 36px' }}>
         <span style={{ fontSize: 11, color: C.textFaint }}>プライバシーポリシー　·　利用規約</span>
@@ -2596,46 +2617,79 @@ function SettingsScreen({ go, user, onLogout }) {
 
 // ── App (router) ───────────────────────────────────────────────────────────
 function App() {
-  const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('gUser') || 'null'));
-  const [screen, setScreen] = useState(() => localStorage.getItem('gUser') ? 'home' : 'login');
+  const [user, setUser]     = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [screen, setScreen] = useState('home');
   const [prev,   setPrev]   = useState('home');
 
-  useEffect(() => {
-    const id = setTimeout(autoBackupCheck, 2000);
-    return () => clearTimeout(id);
-  }, []);
-
-  const go = useCallback((s) => {
-    setPrev(screen);
-    setScreen(s);
-  }, [screen]);
-
+  const go  = useCallback((s) => { setPrev(screen); setScreen(s); }, [screen]);
   const nav = useCallback((key) => {
     const map = { home: 'home', input: 'input', budget: 'budget', report: 'report', settings: 'settings' };
     go(map[key] || key);
   }, [go]);
 
-  const onLogin = (u) => {
-    localStorage.setItem('gUser', JSON.stringify(u));
-    setUser(u);
-    const prefs = Store.get('settings', {});
-    setScreen(prefs.onboardingDone ? 'home' : 'usertype');
-  };
-  const onLogout = () => {
-    localStorage.removeItem('gUser');
-    Store.set('settings', {});
-    if (window.google) google.accounts.id.disableAutoSelect();
+  useEffect(() => {
+    const setup = async (session) => {
+      const u = {
+        name: session.user.user_metadata.full_name || session.user.email,
+        email: session.user.email,
+        picture: session.user.user_metadata.avatar_url,
+      };
+      localStorage.setItem('gUser', JSON.stringify(u));
+      await DB.init(session.user.id);
+      setUser(u);
+      setScreen(Store.get('settings', {}).onboardingDone ? 'home' : 'usertype');
+      setLoading(false);
+      setTimeout(autoBackupCheck, 2000);
+    };
+
+    sb.auth.getSession().then(({ data: { session } }) => {
+      if (session) { setup(session); return; }
+      const g = JSON.parse(localStorage.getItem('gUser') || 'null');
+      if (g?.guest) { setUser(g); setScreen(Store.get('settings',{}).onboardingDone ? 'home' : 'usertype'); }
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = sb.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) setup(session);
+      else if (event === 'SIGNED_OUT') { setUser(null); setScreen('home'); setLoading(false); }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const onLogout = async () => {
+    await sb.auth.signOut();
+    localStorage.clear();
+    DB.userId = null;
     setUser(null);
-    setScreen('login');
   };
+
   const onSelectType = (type) => {
     Store.set('settings', { ...Store.get('settings'), userType: type });
     go(type === 'freelance' ? 'fl-ob1' : type === 'employee' ? 'emp-ob1' : 'hyb-ob1');
   };
 
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ width: 60, height: 60, borderRadius: 16, overflow: 'hidden', margin: '0 auto 16px' }}>
+          <img src="logo.png" style={{ width: '115%', height: '115%', margin: '-7.5%', display: 'block' }} alt="" />
+        </div>
+        <div style={{ fontSize: 13, color: C.textMuted }}>読み込み中...</div>
+      </div>
+    </div>
+  );
+
   const render = () => {
+    if (!user) return (
+      <LoginScreen onSkip={() => {
+        const g = { name: 'ゲスト', email: '', picture: null, guest: true };
+        localStorage.setItem('gUser', JSON.stringify(g));
+        setUser(g);
+        setScreen(Store.get('settings',{}).onboardingDone ? 'home' : 'usertype');
+      }} />
+    );
     switch (screen) {
-      case 'login':         return <LoginScreen    onLogin={onLogin} onSkip={() => go('usertype')} />;
       case 'usertype':      return <UserTypeScreen onSelect={onSelectType} />;
       case 'fl-ob1':        return <Onboarding1    onNext={() => go('fl-ob2')} />;
       case 'fl-ob2':        return <Onboarding2    onNext={() => go('fl-ob3')} />;
