@@ -53,6 +53,34 @@ const Store = {
   set: (key, val) => localStorage.setItem(key, JSON.stringify(val)),
 };
 
+function triggerBackupDownload() {
+  const data = {};
+  ['transactions','fixedExpenses','budgets','networth','settings','cards'].forEach(k => {
+    try { data[k] = JSON.parse(localStorage.getItem(k)); } catch(e) {}
+  });
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `jiyujin-auto-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  localStorage.setItem('lastAutoBackup', String(Date.now()));
+}
+
+function autoBackupCheck() {
+  const s = Store.get('settings', {});
+  if (!s.autoBackup) return;
+  const txns = Store.get('transactions', []);
+  if (!txns.length) return;
+  const last = parseInt(localStorage.getItem('lastAutoBackup') || '0');
+  const msDay = 86400000;
+  const threshold = s.autoBackupInterval === 'weekly' ? 7 * msDay : msDay;
+  if (Date.now() - last >= threshold) triggerBackupDownload();
+}
+
 // ── Design tokens ──────────────────────────────────────────────────────────
 const C = {
   primary:     '#097D60',
@@ -2380,9 +2408,16 @@ function SettingsScreen({ go, user, onLogout }) {
   const nwTotal = nwData.assets.reduce((s,i)=>s+i.amount,0) - nwData.liabilities.reduce((s,i)=>s+i.amount,0);
   const [taxRate, setTaxRate] = useState(() => Store.get('settings', {}).taxRate || 20);
   const [notify, setNotify] = useState(() => Store.get('settings', {}).notify !== false);
+  const [autoBackup, setAutoBackup] = useState(() => Store.get('settings', {}).autoBackup || false);
+  const [autoBackupInterval, setAutoBackupInterval] = useState(() => Store.get('settings', {}).autoBackupInterval || 'daily');
   const [modal, setModal] = useState(null);
   const [taxInput, setTaxInput] = useState('');
   const [toast, setToast] = useState('');
+  const lastBackupTs = parseInt(localStorage.getItem('lastAutoBackup') || '0');
+  const lastBackupLabel = lastBackupTs ? (() => {
+    const diff = Math.floor((Date.now() - lastBackupTs) / 86400000);
+    return diff === 0 ? '今日' : `${diff}日前`;
+  })() : 'なし';
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
 
@@ -2400,6 +2435,19 @@ function SettingsScreen({ go, user, onLogout }) {
     setNotify(next);
     Store.set('settings', { ...Store.get('settings', {}), notify: next });
     showToast(next ? '通知をオンにしました' : '通知をオフにしました');
+  };
+
+  const toggleAutoBackup = () => {
+    const next = !autoBackup;
+    setAutoBackup(next);
+    Store.set('settings', { ...Store.get('settings', {}), autoBackup: next, autoBackupInterval });
+    if (next) { showToast('自動バックアップをオンにしました'); setTimeout(autoBackupCheck, 300); }
+    else showToast('自動バックアップをオフにしました');
+  };
+
+  const changeInterval = (val) => {
+    setAutoBackupInterval(val);
+    Store.set('settings', { ...Store.get('settings', {}), autoBackupInterval: val });
   };
 
   const exportData = () => {
@@ -2502,6 +2550,29 @@ function SettingsScreen({ go, user, onLogout }) {
           </button>
         </Card>
 
+        <div style={{ background: 'white', borderRadius: 16, padding: '16px 18px', marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: autoBackup ? 14 : 0 }}>
+            <span style={{ fontSize: 18, width: 28, textAlign: 'center' }}>🔄</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 500, color: C.text }}>自動バックアップ</div>
+              <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>最終保存: {lastBackupLabel}</div>
+            </div>
+            <button onClick={toggleAutoBackup} style={{ width: 50, height: 28, borderRadius: 999, background: autoBackup ? C.primary : C.border, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'white', position: 'absolute', top: 3, left: autoBackup ? 25 : 3, transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+            </button>
+          </div>
+          {autoBackup && (
+            <div style={{ display: 'flex', gap: 8, paddingLeft: 42 }}>
+              {['daily','weekly'].map(v => (
+                <button key={v} onClick={() => changeInterval(v)} style={{ background: autoBackupInterval === v ? C.primary : C.bg, color: autoBackupInterval === v ? 'white' : C.textMed, borderRadius: 999, padding: '7px 16px', fontSize: 12, fontWeight: autoBackupInterval === v ? 700 : 500, border: 'none', cursor: 'pointer' }}>
+                  {v === 'daily' ? '毎日' : '毎週'}
+                </button>
+              ))}
+              <div style={{ fontSize: 11, color: C.textMuted, display: 'flex', alignItems: 'center', paddingLeft: 4 }}>アプリ起動時に自動保存</div>
+            </div>
+          )}
+        </div>
+
         {rows.map(row => (
           <button key={row.label} onClick={row.action} style={{ background: 'white', borderRadius: 16, padding: '16px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 1px 6px rgba(0,0,0,0.04)', cursor: 'pointer', width: '100%', textAlign: 'left', border: 'none' }}>
             <span style={{ fontSize: 18, width: 28, textAlign: 'center' }}>{row.emoji}</span>
@@ -2528,6 +2599,11 @@ function App() {
   const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('gUser') || 'null'));
   const [screen, setScreen] = useState(() => localStorage.getItem('gUser') ? 'home' : 'login');
   const [prev,   setPrev]   = useState('home');
+
+  useEffect(() => {
+    const id = setTimeout(autoBackupCheck, 2000);
+    return () => clearTimeout(id);
+  }, []);
 
   const go = useCallback((s) => {
     setPrev(screen);
