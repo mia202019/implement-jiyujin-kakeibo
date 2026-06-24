@@ -74,6 +74,12 @@ const C = {
 };
 
 const fmt = n => n.toLocaleString('ja-JP');
+const TODAY = new Date().toISOString().slice(0,10);
+const YESTERDAY = new Date(Date.now()-86400000).toISOString().slice(0,10);
+function resolveDate(d) { if (d==='今日') return TODAY; if (d==='昨日') return YESTERDAY; return d; }
+function getThisMonthTxns() { const ym=TODAY.slice(0,7); return Store.get('transactions',[]).filter(t=>t.date&&t.date.startsWith(ym)); }
+function sumDiv(txns, div) { return txns.filter(t=>t.type==='expense'&&t.division===div).reduce((s,t)=>s+t.amount,0); }
+const CAT_EMOJI = {'食費':'🛒','交通費':'🚌','日用品':'🧴','材料費':'🎨','機材・ソフト':'💻','外食':'🍜','美容・衣服':'👗','その他':'📋','売上':'💰'};
 
 // ── Shared components ──────────────────────────────────────────────────────
 function Card({ children, style = {} }) {
@@ -581,27 +587,45 @@ function HomeScreen({ go }) {
         </div>
 
         {/* Stats row */}
-        <div style={{ display: 'flex', gap: 12, padding: '0 16px', marginBottom: 14 }}>
-          <Card style={{ flex: 1, padding: 18 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, marginBottom: 8 }}>確定収入</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: C.text, letterSpacing: '-1px', fontFeatureSettings: "'tnum'" }}>{fmt(income)}</div>
-            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>円　今月の合計</div>
-          </Card>
-          <Card style={{ flex: 1, padding: 18 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: C.warning, marginBottom: 8 }}>月末残り予測</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: C.warning, letterSpacing: '-1px', fontFeatureSettings: "'tnum'" }}>82,000</div>
-            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>円　税・固定費除く</div>
-          </Card>
-        </div>
+        {(() => {
+          const mTxns = getThisMonthTxns();
+          const totalSpent = mTxns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+          const remaining = Math.max(0, usable - totalSpent);
+          return (
+            <div style={{ display: 'flex', gap: 12, padding: '0 16px', marginBottom: 14 }}>
+              <Card style={{ flex: 1, padding: 18 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted, marginBottom: 8 }}>確定収入</div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: C.text, letterSpacing: '-1px', fontFeatureSettings: "'tnum'" }}>{fmt(income)}</div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>円　今月の合計</div>
+              </Card>
+              <Card style={{ flex: 1, padding: 18 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: C.warning, marginBottom: 8 }}>月末残り予測</div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: C.warning, letterSpacing: '-1px', fontFeatureSettings: "'tnum'" }}>{fmt(remaining)}</div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>円　税・固定費除く</div>
+              </Card>
+            </div>
+          );
+        })()}
 
         {/* Breakdown */}
+        {(() => {
+          const mTxns = getThisMonthTxns();
+          const lifeSpent = sumDiv(mTxns, '生活費');
+          const bizSpent = sumDiv(mTxns, '事業費');
+          const totalAmt = breakdown.reduce((s,i)=>s+i.amt, 0) + lifeSpent + bizSpent;
+          const bd = [
+            { name: '生活費', amt: lifeSpent, pct: income > 0 ? Math.round(lifeSpent/income*100) : 0, color: C.info, note: `¥${fmt(lifeSpent)} 支出`, noteColor: C.textMuted },
+            { name: bizLabel, amt: bizSpent, pct: income > 0 ? Math.round(bizSpent/income*100) : 0, color: C.primary, note: `¥${fmt(bizSpent)} 支出`, noteColor: C.textMuted },
+            ...breakdown.slice(2),
+          ];
+          return (
         <Card style={{ margin: '0 16px 14px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>支出内訳</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: C.textMed, fontFeatureSettings: "'tnum'" }}>¥192,000</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.textMed, fontFeatureSettings: "'tnum'" }}>¥{fmt(lifeSpent + bizSpent + taxAmt + savingsGoal)}</div>
           </div>
-          {breakdown.map((item, i) => (
-            <div key={item.name} style={{ marginBottom: i < breakdown.length - 1 ? 14 : 0 }}>
+          {bd.map((item, i) => (
+            <div key={item.name} style={{ marginBottom: i < bd.length - 1 ? 14 : 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <div style={{ width: 9, height: 9, borderRadius: 3, background: item.color, flexShrink: 0 }} />
@@ -614,6 +638,8 @@ function HomeScreen({ go }) {
             </div>
           ))}
         </Card>
+          );
+        })()}
 
         {/* Alert */}
         <div style={{ margin: '0 16px 20px', background: C.warningBg, borderRadius: 18, padding: 18, borderLeft: `3px solid ${C.warning}` }}>
@@ -635,14 +661,22 @@ function HomeScreen({ go }) {
 
 // ── 06 Expense Input ───────────────────────────────────────────────────────
 function ExpenseInput({ onBack, onDone }) {
-  const [amount, setAmount] = useState('3200');
+  const [amount, setAmount] = useState('');
   const [date,   setDate]   = useState('今日');
-  const [cat,    setCat]    = useState('交通費');
+  const [cat,    setCat]    = useState('食費');
   const [div,    setDiv]    = useState('生活費');
   const [pay,    setPay]    = useState('カード');
-  const [memo,   setMemo]   = useState('スーパーでの買い物');
+  const [memo,   setMemo]   = useState('');
 
   const cats = ['食費','交通費','日用品','材料費','機材・ソフト','外食','美容・衣服','その他'];
+
+  const save = () => {
+    const n = parseInt(amount);
+    if (!n || n <= 0) return;
+    const txn = { id: Date.now(), type: 'expense', amount: n, category: cat, division: div, payment: pay, memo, date: resolveDate(date) };
+    Store.set('transactions', [txn, ...Store.get('transactions', [])]);
+    onDone();
+  };
 
   return (
     <Screen>
@@ -731,7 +765,7 @@ function ExpenseInput({ onBack, onDone }) {
       </div>
 
       <div style={{ padding: '12px 20px 24px', flexShrink: 0 }}>
-        <PrimaryBtn onClick={onDone}>追加する</PrimaryBtn>
+        <PrimaryBtn onClick={save}>追加する</PrimaryBtn>
       </div>
     </Screen>
   );
@@ -739,14 +773,23 @@ function ExpenseInput({ onBack, onDone }) {
 
 // ── 07 Income Input ────────────────────────────────────────────────────────
 function IncomeInput({ onBack, onDone }) {
-  const [amount, setAmount] = useState('150000');
+  const [amount, setAmount] = useState('');
   const [type,   setType]   = useState('確定収入');
-  const [source, setSource] = useState('株式会社○○デザイン');
+  const [source, setSource] = useState('');
   const [date,   setDate]   = useState('今日');
-  const [memo,   setMemo]   = useState('6月分Webデザイン納品');
+  const [memo,   setMemo]   = useState('');
 
+  const s = Store.get('settings', {});
+  const taxRate = s.taxRate || 20;
   const n = parseInt(amount) || 0;
-  const tax = Math.round(n * 0.2);
+  const tax = Math.round(n * taxRate / 100);
+
+  const save = () => {
+    if (!n || n <= 0) return;
+    const txn = { id: Date.now(), type: 'income', amount: n, incomeType: type, source, memo, date: resolveDate(date) };
+    Store.set('transactions', [txn, ...Store.get('transactions', [])]);
+    onDone();
+  };
 
   return (
     <Screen>
@@ -805,7 +848,7 @@ function IncomeInput({ onBack, onDone }) {
             <div style={{ fontSize: 12, fontWeight: 700, color: C.warning, marginBottom: 10 }}>自動計算</div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: 12, color: C.textMed }}>税金積立（20%）</div>
+                <div style={{ fontSize: 12, color: C.textMed }}>税金積立（{taxRate}%）</div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: C.warning, fontFeatureSettings: "'tnum'" }}>¥{fmt(tax)}</div>
               </div>
               <div>
@@ -825,7 +868,7 @@ function IncomeInput({ onBack, onDone }) {
       </div>
 
       <div style={{ padding: '12px 20px 24px', flexShrink: 0 }}>
-        <PrimaryBtn onClick={onDone}>追加する</PrimaryBtn>
+        <PrimaryBtn onClick={save}>追加する</PrimaryBtn>
       </div>
     </Screen>
   );
@@ -857,23 +900,26 @@ function InputSelector({ go }) {
           <svg style={{ marginLeft: 'auto', flexShrink: 0 }} width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1l6 6-6 6" stroke={C.textFaint} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
 
+        {(() => {
+          const recent = Store.get('transactions', []).slice(0, 5);
+          return (
         <div style={{ marginTop: 'auto' }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, letterSpacing: '0.04em', marginBottom: 12 }}>最近の記録</div>
-          {[
-            { icon: '🛒', name: 'スーパーでの買い物', cat: '食費', div: '生活費', amt: '-¥3,200', color: C.text, date: '今日' },
-            { icon: '🚌', name: '電車・バス', cat: '交通費', div: '事業費', amt: '-¥540', color: C.text, date: '昨日' },
-            { icon: '💰', name: '株式会社○○デザイン', cat: '売上', div: '確定収入', amt: '+¥150,000', color: C.primary, date: '6/20' },
-          ].map(r => (
-            <div key={r.name} style={{ background: 'white', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
-              <span style={{ fontSize: 20 }}>{r.icon}</span>
+          {recent.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '20px 0', color: C.textFaint, fontSize: 13 }}>まだ記録がありません</div>
+          ) : recent.map(r => (
+            <div key={r.id} style={{ background: 'white', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
+              <span style={{ fontSize: 20 }}>{r.type==='income' ? '💰' : (CAT_EMOJI[r.category]||'📋')}</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{r.name}</div>
-                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{r.cat} · {r.div} · {r.date}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{r.memo || r.source || r.category}</div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{r.category||r.incomeType} · {r.division||'収入'} · {r.date}</div>
               </div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: r.color, fontFeatureSettings: "'tnum'" }}>{r.amt}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: r.type==='income'?C.primary:C.text, fontFeatureSettings: "'tnum'" }}>{r.type==='income'?'+':'-'}¥{fmt(r.amount)}</div>
             </div>
           ))}
         </div>
+          );
+        })()}
       </div>
 
       <BottomNav active="input" go={go} />
@@ -883,6 +929,28 @@ function InputSelector({ go }) {
 
 // ── 09 Tax & Savings ───────────────────────────────────────────────────────
 function TaxScreen({ go }) {
+  const s = Store.get('settings', {});
+  const income = (s.salary || 0) + (s.sideIncome || 0) + (s.income || 0);
+  const taxRate = s.taxRate || 20;
+  const goalAmt = Math.round(income * taxRate / 100);
+  const txns = getThisMonthTxns();
+  const savedAmt = sumDiv(txns, '税金');
+  const pct = goalAmt > 0 ? Math.min(100, Math.round(savedAmt / goalAmt * 100)) : 0;
+  const dashOffset = Math.round(327 * (1 - pct / 100));
+  const remaining = Math.max(0, goalAmt - savedAmt);
+  const today = new Date();
+  const daysLeft = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate() - today.getDate();
+
+  const allTxns = Store.get('transactions', []);
+  const history = Array.from({length: 4}, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const ym = d.toISOString().slice(0,7);
+    const label = `${d.getMonth()+1}月`;
+    const mSaved = allTxns.filter(t => t.date && t.date.startsWith(ym) && t.type==='expense' && t.division==='税金').reduce((s,t)=>s+t.amount,0);
+    const mPct = goalAmt > 0 ? Math.min(100, Math.round(mSaved/goalAmt*100)) : 0;
+    return { m: label, pct: mPct, amt: `¥${fmt(mSaved)}`, color: mPct >= 100 ? C.primary : C.warning };
+  }).reverse();
+
   return (
     <Screen>
       <div style={{ flex: 1, overflowY: 'auto', padding: '56px 20px 20px' }}>
@@ -893,7 +961,7 @@ function TaxScreen({ go }) {
         </div>
 
         <div style={{ fontSize: 21, fontWeight: 700, color: C.text, marginBottom: 4 }}>税金・積立</div>
-        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 24 }}>2026年6月 — 目標達成まで頑張ろう</div>
+        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 24 }}>{today.getMonth()+1}月 — 目標達成まで頑張ろう</div>
 
         {/* Progress card */}
         <Card style={{ marginBottom: 16, padding: '28px 24px' }}>
@@ -901,37 +969,37 @@ function TaxScreen({ go }) {
             <div style={{ flexShrink: 0, position: 'relative', width: 128, height: 128 }}>
               <svg width="128" height="128" viewBox="0 0 128 128" style={{ position: 'absolute', top: 0, left: 0 }}>
                 <circle cx="64" cy="64" r="52" fill="none" stroke={C.bgCard} strokeWidth="11"/>
-                <circle cx="64" cy="64" r="52" fill="none" stroke={C.warning} strokeWidth="11" strokeDasharray="327" strokeDashoffset="134" strokeLinecap="round" transform="rotate(-90 64 64)"/>
+                <circle cx="64" cy="64" r="52" fill="none" stroke={C.warning} strokeWidth="11" strokeDasharray="327" strokeDashoffset={dashOffset} strokeLinecap="round" transform="rotate(-90 64 64)"/>
               </svg>
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ fontSize: 24, fontWeight: 700, color: C.warning, lineHeight: 1, fontFeatureSettings: "'tnum'" }}>59%</div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: C.warning, lineHeight: 1, fontFeatureSettings: "'tnum'" }}>{pct}%</div>
                 <div style={{ fontSize: 10, color: C.textMuted, marginTop: 4 }}>達成</div>
               </div>
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6 }}>積み立て済み</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: C.warning, letterSpacing: '-1px', fontFeatureSettings: "'tnum'", lineHeight: 1.1 }}>¥45,000</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: C.warning, letterSpacing: '-1px', fontFeatureSettings: "'tnum'", lineHeight: 1.1 }}>¥{fmt(savedAmt)}</div>
               <div style={{ height: 1, background: C.bgCard, margin: '12px 0' }} />
               <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 4 }}>今月の目標</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: C.text, fontFeatureSettings: "'tnum'" }}>¥76,000</div>
-              <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>収入の20%</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: C.text, fontFeatureSettings: "'tnum'" }}>¥{fmt(goalAmt)}</div>
+              <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>収入の{taxRate}%</div>
             </div>
           </div>
-          <div style={{ marginTop: 20, background: C.warningBg, borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 2L16 14H2L9 2Z" stroke={C.warning} strokeWidth="1.4" fill="none" strokeLinejoin="round"/><path d="M9 7V10M9 12V12.5" stroke={C.warning} strokeWidth="1.4" strokeLinecap="round"/></svg>
-            <div style={{ fontSize: 12, color: C.warning, lineHeight: 1.6 }}>あと <strong style={{ fontSize: 15, fontFeatureSettings: "'tnum'" }}>¥31,000</strong> 積み立てが必要です。月末まであと8日。</div>
-          </div>
+          {remaining > 0 && (
+            <div style={{ marginTop: 20, background: C.warningBg, borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 2L16 14H2L9 2Z" stroke={C.warning} strokeWidth="1.4" fill="none" strokeLinejoin="round"/><path d="M9 7V10M9 12V12.5" stroke={C.warning} strokeWidth="1.4" strokeLinecap="round"/></svg>
+              <div style={{ fontSize: 12, color: C.warning, lineHeight: 1.6 }}>あと <strong style={{ fontSize: 15, fontFeatureSettings: "'tnum'" }}>¥{fmt(remaining)}</strong> 積み立てが必要です。月末まであと{daysLeft}日。</div>
+            </div>
+          )}
+          {remaining === 0 && goalAmt > 0 && (
+            <div style={{ marginTop: 20, background: C.primaryLight, borderRadius: 14, padding: '14px 16px', fontSize: 13, color: C.primary, fontWeight: 700 }}>今月の目標達成！ 🎉</div>
+          )}
         </Card>
 
         {/* History */}
         <Card style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 16 }}>月別積立状況</div>
-          {[
-            { m: '6月', pct: 59, amt: '¥45,000', color: C.warning },
-            { m: '5月', pct: 100, amt: '¥72,000', color: C.primary },
-            { m: '4月', pct: 100, amt: '¥84,000', color: C.primary },
-            { m: '3月', pct: 72,  amt: '¥52,000', color: C.warning },
-          ].map(row => (
+          {history.map(row => (
             <div key={row.m} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               <div style={{ fontSize: 12, color: C.textMuted, width: 28, flexShrink: 0 }}>{row.m}</div>
               <div style={{ flex: 1, background: C.bgCard, borderRadius: 4, height: 8, overflow: 'hidden' }}>
@@ -956,12 +1024,40 @@ function TaxScreen({ go }) {
 
 // ── 10 Budget ──────────────────────────────────────────────────────────────
 function BudgetScreen({ go }) {
+  const s = Store.get('settings', {});
+  const userType = s.userType || 'freelance';
+  const income = (s.salary || 0) + (s.sideIncome || 0) + (s.income || 0);
+  const taxRate = s.taxRate || 20;
+  const [budgets, setBudgets] = useState(() => ({ '生活費': 0, '事業費': 0, '税金積立': Math.round(income * taxRate / 100), '投資': s.savingsGoal || 0, ...Store.get('budgets', {}) }));
+  const [editKey, setEditKey] = useState(null);
+  const [editVal, setEditVal] = useState('');
+
+  const txns = getThisMonthTxns();
+  const lifeUsed = sumDiv(txns, '生活費');
+  const bizUsed  = sumDiv(txns, '事業費');
+  const taxUsed  = sumDiv(txns, '税金');
+  const invUsed  = sumDiv(txns, '投資');
+
   const cats = [
-    { name: '生活費',  used: 98000,  budget: 150000, pct: 65, color: C.info,    note: '65% — 安全',        noteColor: C.textMuted, warn: false },
-    { name: '事業費',  used: 43000,  budget: 50000,  pct: 86, color: C.primary, note: '86% — 注意',        noteColor: C.warning,  warn: true  },
-    { name: '税金積立', used: 45000, budget: 76000,  pct: 59, color: C.warning, note: '59% — 積み立て継続中', noteColor: C.textMuted, warn: false },
-    { name: '投資・貯金', used: 0,   budget: 30000,  pct: 0,  color: C.invest,  note: '未設定',             noteColor: C.textMuted, warn: false },
-  ];
+    { key:'生活費', name:'生活費', used:lifeUsed, budget:budgets['生活費']||0, color:C.info },
+    { key:'事業費', name:userType==='employee'?'特別支出':'事業費', used:bizUsed, budget:budgets['事業費']||0, color:C.primary },
+    { key:'税金積立', name:'税金積立', used:taxUsed, budget:budgets['税金積立']||0, color:C.warning },
+    { key:'投資', name:userType==='freelance'?'投資':'貯蓄', used:invUsed, budget:budgets['投資']||0, color:C.invest },
+  ].map(c => {
+    const pct = c.budget > 0 ? Math.min(100, Math.round(c.used/c.budget*100)) : 0;
+    const warn = pct >= 80;
+    return { ...c, pct, warn, note: c.budget > 0 ? `${pct}%` : '予算未設定', noteColor: warn ? C.warning : C.textMuted };
+  });
+
+  const totalUsed = cats.reduce((s,c)=>s+c.used, 0);
+  const totalBudget = cats.reduce((s,c)=>s+c.budget, 0);
+  const totalPct = totalBudget > 0 ? Math.min(100, Math.round(totalUsed/totalBudget*100)) : 0;
+  const today = new Date();
+
+  const commitEdit = (key) => {
+    const next = { ...budgets, [key]: parseInt(editVal)||0 };
+    setBudgets(next); Store.set('budgets', next); setEditKey(null);
+  };
 
   return (
     <Screen>
@@ -974,35 +1070,39 @@ function BudgetScreen({ go }) {
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div style={{ fontSize: 21, fontWeight: 700, color: C.text }}>予算管理</div>
-          <div style={{ fontSize: 13, fontWeight: 500, color: C.primary }}>6月</div>
+          <div style={{ fontSize: 13, fontWeight: 500, color: C.primary }}>{today.getMonth()+1}月</div>
         </div>
-        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 20 }}>総予算 ¥215,000 · 使用済み ¥186,000</div>
+        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 20 }}>総予算 ¥{fmt(totalBudget)} · 使用済み ¥{fmt(totalUsed)}</div>
 
         {/* Overall */}
         <Card style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>全体予算</div>
-            <div style={{ fontSize: 12, color: C.textMuted, fontFeatureSettings: "'tnum'" }}>¥186,000 / ¥215,000</div>
+            <div style={{ fontSize: 12, color: C.textMuted, fontFeatureSettings: "'tnum'" }}>¥{fmt(totalUsed)} / ¥{fmt(totalBudget)}</div>
           </div>
           <div style={{ background: C.bgCard, borderRadius: 6, height: 10, marginBottom: 6, overflow: 'hidden' }}>
-            <div style={{ background: `linear-gradient(90deg, ${C.info} 40%, ${C.primary} 40% 75%, ${C.warning} 75% 90%, ${C.invest} 90%)`, width: '87%', height: '100%', borderRadius: 6 }} />
+            <div style={{ background: `linear-gradient(90deg, ${C.info} 40%, ${C.primary} 40% 75%, ${C.warning} 75% 90%, ${C.invest} 90%)`, width: `${totalPct}%`, height: '100%', borderRadius: 6, transition: 'width .3s' }} />
           </div>
-          <div style={{ fontSize: 11, color: C.textMuted }}>予算の87%を使用中</div>
+          <div style={{ fontSize: 11, color: C.textMuted }}>予算の{totalPct}%を使用中</div>
         </Card>
 
         {/* Categories */}
         <Card style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 18 }}>カテゴリ別</div>
           {cats.map((item, i) => (
-            <div key={item.name} style={{ marginBottom: i < cats.length - 1 ? 18 : 0 }}>
+            <div key={item.key} style={{ marginBottom: i < cats.length - 1 ? 18 : 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 10, height: 10, borderRadius: 3, background: item.color, flexShrink: 0 }} />
                   <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{item.name}</span>
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: item.warn ? C.warning : C.text, fontFeatureSettings: "'tnum'" }}>¥{fmt(item.used)}</span>
-                  <span style={{ fontSize: 11, color: C.textMuted, marginLeft: 4 }}>/ ¥{fmt(item.budget)}</span>
+                  {editKey === item.key ? (
+                    <input autoFocus type="number" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={() => commitEdit(item.key)} onKeyDown={e => e.key==='Enter' && commitEdit(item.key)} style={{ width: 80, fontSize: 12, padding: '4px 8px', border: `1.5px solid ${C.primary}`, borderRadius: 8, outline: 'none' }} />
+                  ) : (
+                    <button onClick={() => { setEditKey(item.key); setEditVal(String(item.budget)); }} style={{ fontSize: 11, color: C.textMuted, borderBottom: `1px dashed ${C.border}` }}>/ ¥{fmt(item.budget)}</button>
+                  )}
                 </div>
               </div>
               <Bar pct={item.pct} color={item.color} />
@@ -1013,14 +1113,6 @@ function BudgetScreen({ go }) {
             </div>
           ))}
         </Card>
-
-        {/* Add category */}
-        <div style={{ background: 'white', borderRadius: 18, padding: 16, display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.05)', cursor: 'pointer' }}>
-          <div style={{ width: 40, height: 40, background: C.primaryLight, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2V14M2 8H14" stroke={C.primary} strokeWidth="1.8" strokeLinecap="round"/></svg>
-          </div>
-          <span style={{ fontSize: 14, fontWeight: 500, color: C.primary }}>予算カテゴリを追加</span>
-        </div>
       </div>
 
       <BottomNav active="budget" go={go} />
@@ -1030,37 +1122,57 @@ function BudgetScreen({ go }) {
 
 // ── 11 Monthly Report ──────────────────────────────────────────────────────
 function ReportScreen({ go }) {
-  const months = [
-    { label: '1月', inc: 63, exp: 42 },
-    { label: '2月', inc: 81, exp: 52 },
-    { label: '3月', inc: 66, exp: 43 },
-    { label: '4月', inc: 100, exp: 57 },
-    { label: '5月', inc: 86, exp: 50 },
-    { label: '6月', inc: 90, exp: 46, current: true },
-  ];
+  const allTxns = Store.get('transactions', []);
+  const today = new Date();
+  const months = Array.from({length: 6}, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth() - 5 + i, 1);
+    const ym = d.toISOString().slice(0,7);
+    const mT = allTxns.filter(t => t.date && t.date.startsWith(ym));
+    const inc = mT.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+    const exp = mT.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+    return { label:`${d.getMonth()+1}月`, rawInc:inc, rawExp:exp, isCurrent:i===5 };
+  });
+  const maxVal = Math.max(...months.map(m=>Math.max(m.rawInc,m.rawExp)), 1);
+  const scale = v => Math.round(v/maxVal*100);
+
+  const currYm = TODAY.slice(0,7);
+  const currT = allTxns.filter(t=>t.date&&t.date.startsWith(currYm));
+  const thisInc = currT.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const thisExp = currT.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const savingsRate = thisInc > 0 ? ((thisInc-thisExp)/thisInc*100).toFixed(1) : '0.0';
+
+  const prevYm = new Date(today.getFullYear(),today.getMonth()-1,1).toISOString().slice(0,7);
+  const prevT = allTxns.filter(t=>t.date&&t.date.startsWith(prevYm));
+  const prevInc = prevT.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const prevExp = prevT.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+
+  const byCat = {};
+  currT.filter(t=>t.type==='expense').forEach(t=>{ byCat[t.category]=(byCat[t.category]||0)+t.amount; });
+  const ranking = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([name,amt],i)=>({rank:i+1,name,amt}));
+
+  const mom = [
+    { label:'収入', prevAmt:prevInc, currAmt:thisInc },
+    { label:'支出', prevAmt:prevExp, currAmt:thisExp },
+  ].map(r => {
+    const diff = r.currAmt - r.prevAmt;
+    const positive = r.label==='収入' ? diff>=0 : diff<=0;
+    return { ...r, positive, diffStr:(diff>=0?'+':'')+`¥${fmt(Math.abs(diff))}` };
+  });
 
   return (
     <Screen>
       <div style={{ flex: 1, overflowY: 'auto', padding: '56px 20px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div style={{ fontSize: 21, fontWeight: 700, color: C.text }}>月次レポート</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 30, height: 30, background: 'white', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.07)', cursor: 'pointer' }}>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L3 6L8 10" stroke={C.textMed} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>6月</span>
-            <div style={{ width: 30, height: 30, background: 'white', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.07)', cursor: 'pointer' }}>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2L9 6L4 10" stroke={C.textFaint} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </div>
-          </div>
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{today.getMonth()+1}月</span>
         </div>
 
         {/* Summary */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
           {[
-            { label: '収入', value: '380,000', color: C.primary, sub: '円' },
-            { label: '支出', value: '192,000', color: C.text,    sub: '円' },
-            { label: '貯蓄率', value: '49.5%', color: C.invest,  sub: '税引き前' },
+            { label:'収入',   value:fmt(thisInc), color:C.primary, sub:'円' },
+            { label:'支出',   value:fmt(thisExp), color:C.text,    sub:'円' },
+            { label:'貯蓄率', value:`${savingsRate}%`, color:C.invest, sub:'税引き前' },
           ].map(s => (
             <Card key={s.label} style={{ flex: 1, padding: 16 }}>
               <div style={{ fontSize: 10, fontWeight: 600, color: C.textMuted, marginBottom: 6 }}>{s.label}</div>
@@ -1082,30 +1194,30 @@ function ReportScreen({ go }) {
             <line x1="0" y1="43" x2="348" y2="43" stroke={C.bgCard} strokeWidth="1"/>
             <line x1="0" y1="77" x2="348" y2="77" stroke={C.bgCard} strokeWidth="1"/>
             <line x1="0" y1="110" x2="348" y2="110" stroke={C.border} strokeWidth="1.2"/>
-            {months.map((d, i) => (
-              <g key={d.label}>
-                <rect x={i*58+6}  y={110-d.inc} width="20" height={d.inc} rx="4" fill={C.primary} opacity={d.current ? 1 : 0.7}/>
-                <rect x={i*58+29} y={110-d.exp} width="20" height={d.exp} rx="4" fill={C.info}    opacity={d.current ? 1 : 0.7}/>
-                <text x={i*58+24} y="128" textAnchor="middle" fontSize="10" fill={d.current ? C.text : C.textFaint} fontWeight={d.current ? '700' : '400'} fontFamily="sans-serif">{d.label}</text>
-              </g>
-            ))}
+            {months.map((d, i) => {
+              const ih = scale(d.rawInc), eh = scale(d.rawExp);
+              return (
+                <g key={d.label}>
+                  <rect x={i*58+6}  y={110-ih} width="20" height={ih} rx="4" fill={C.primary} opacity={d.isCurrent?1:0.7}/>
+                  <rect x={i*58+29} y={110-eh} width="20" height={eh} rx="4" fill={C.info}    opacity={d.isCurrent?1:0.7}/>
+                  <text x={i*58+24} y="128" textAnchor="middle" fontSize="10" fill={d.isCurrent?C.text:C.textFaint} fontWeight={d.isCurrent?'700':'400'} fontFamily="sans-serif">{d.label}</text>
+                </g>
+              );
+            })}
           </svg>
         </Card>
 
         {/* Category ranking */}
         <Card style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 16 }}>支出カテゴリTop4</div>
-          {[
-            { rank: 1, name: '食費',         amt: '¥42,000', color: C.info,    warn: false },
-            { rank: 2, name: 'イベント出店', amt: '¥28,000', color: C.primary, warn: true  },
-            { rank: 3, name: '交通費',        amt: '¥22,000', color: C.info,    warn: false },
-            { rank: 4, name: '材料費',        amt: '¥15,000', color: C.primary, warn: false },
-          ].map(r => (
+          {ranking.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'16px 0', color:C.textFaint, fontSize:13 }}>まだ支出がありません</div>
+          ) : ranking.map(r => (
             <div key={r.rank} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.textMuted, width: 18 }}>{r.rank}</div>
-              <div style={{ width: 9, height: 9, borderRadius: 3, background: r.color, flexShrink: 0 }} />
+              <div style={{ width: 9, height: 9, borderRadius: 3, background: C.info, flexShrink: 0 }} />
               <div style={{ flex: 1, fontSize: 13, color: C.text, fontWeight: 500 }}>{r.name}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: r.warn ? C.warning : C.text, fontFeatureSettings: "'tnum'" }}>{r.amt}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFeatureSettings: "'tnum'" }}>¥{fmt(r.amt)}</div>
             </div>
           ))}
         </Card>
@@ -1113,16 +1225,12 @@ function ReportScreen({ go }) {
         {/* MoM */}
         <Card>
           <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 16 }}>前月比較</div>
-          {[
-            { label: '収入',    prev: '5月 ¥360,000', diff: '+¥20,000 ↑', positive: true  },
-            { label: '支出',    prev: '5月 ¥205,000', diff: '-¥13,000 ↓', positive: true  },
-            { label: '税金積立', prev: '5月 ¥72,000',  diff: '-¥27,000 ↓', positive: false },
-          ].map((r, i) => (
-            <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: i < 2 ? 10 : 0, borderBottom: i < 2 ? `1px solid ${C.bgCard}` : 'none', marginBottom: i < 2 ? 10 : 0 }}>
+          {mom.map((r, i) => (
+            <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: i < 1 ? 10 : 0, borderBottom: i < 1 ? `1px solid ${C.bgCard}` : 'none', marginBottom: i < 1 ? 10 : 0 }}>
               <span style={{ fontSize: 13, color: C.textMed }}>{r.label}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 11, color: C.textMuted, fontFeatureSettings: "'tnum'" }}>{r.prev}</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: r.positive ? C.primary : C.warning, fontFeatureSettings: "'tnum'" }}>{r.diff}</span>
+                <span style={{ fontSize: 11, color: C.textMuted, fontFeatureSettings: "'tnum'" }}>前月 ¥{fmt(r.prevAmt)}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: r.positive?C.primary:C.warning, fontFeatureSettings: "'tnum'" }}>{r.diffStr}</span>
               </div>
             </div>
           ))}
