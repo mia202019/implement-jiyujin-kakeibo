@@ -737,41 +737,50 @@ const DEFAULT_CARDS = [
   { id: 'cash-def', name: '現金',   last4: '' },
   { id: 'pp-def',   name: 'PayPay', last4: '' },
 ];
-function getCards() { const c = Store.get('cards', []); return c.length ? c : DEFAULT_CARDS; }
+function getCards() {
+  const c = Store.get('cards', []);
+  if (!c.length) return DEFAULT_CARDS;
+  const names = new Set(c.map(x => x.name));
+  const extras = [
+    { id: 'cash-base', name: '現金',   last4: '' },
+    { id: 'pp-base',   name: 'PayPay', last4: '' },
+  ].filter(x => !names.has(x.name));
+  return [...c, ...extras];
+}
 function cardColor(cards, name) { const i = cards.findIndex(c=>c.name===name); return i>=0 ? CARD_PALETTE[i%CARD_PALETTE.length] : '#9ca3af'; }
 const EXPENSE_CATS = [
   { name:'食費',       emoji:'🛒', group:'life' },
-  { name:'外食',       emoji:'🍜', group:'life' },
   { name:'交通費',     emoji:'🚌', group:'life' },
   { name:'日用品',     emoji:'🧴', group:'life' },
   { name:'美容・衣服', emoji:'👗', group:'life' },
   { name:'医療・健康', emoji:'💊', group:'life' },
-  { name:'通信費',     emoji:'📱', group:'life' },
   { name:'趣味・娯楽', emoji:'🎮', group:'life' },
   { name:'材料費',     emoji:'🎨', group:'biz'  },
   { name:'機材・ソフト',emoji:'💻', group:'biz'  },
   { name:'出店料',     emoji:'🏪', group:'biz'  },
   { name:'交際費',     emoji:'🥂', group:'biz'  },
   { name:'教育・学習', emoji:'📚', group:'biz'  },
-  { name:'その他',     emoji:'📋', group:'other' },
 ];
 
 function ExpenseForm({ onSave }) {
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('今日');
   const [cat, setCat] = useState('食費');
+  const [catOther, setCatOther] = useState('');
   const [div, setDiv] = useState('生活費');
   const [investType, setInvestType] = useState('積立NISA');
-  const [pay, setPay] = useState('カード');
+  const [pay, setPay] = useState(() => getCards()[0]?.name || '現金');
   const [memo, setMemo] = useState('');
   const inputStyle = { background: C.bg, borderRadius: 12, padding: '13px 16px', fontSize: 14, color: C.text, border: 'none', width: '100%', outline: 'none' };
+  const isCustomDate = date !== '今日' && date !== '昨日';
+  const finalCat = cat === 'その他' ? (catOther.trim() || 'その他') : cat;
 
   const save = () => {
     const n = parseInt(amount);
     if (!n || n <= 0) return;
-    const txn = { id: Date.now(), type: 'expense', amount: n, category: cat, division: div, payment: pay, memo, date: resolveDate(date), ...(div==='投資' ? {investType} : {}) };
+    const txn = { id: Date.now(), type: 'expense', amount: n, category: finalCat, division: div, payment: pay, memo, date: resolveDate(isCustomDate ? date : date), ...(div==='投資' ? {investType} : {}) };
     Store.set('transactions', [txn, ...Store.get('transactions', [])]);
-    setAmount(''); setMemo(''); setDate('今日'); setCat('食費');
+    setAmount(''); setMemo(''); setDate('今日'); setCat('食費'); setCatOther('');
     onSave && onSave();
   };
 
@@ -786,11 +795,13 @@ function ExpenseForm({ onSave }) {
       </div>
 
       <Field label="日付">
-        <div style={{ display: 'flex', gap: 8 }}>
-          {['今日','昨日','日付選択'].map(d => (
-            <button key={d} onClick={() => setDate(d)} style={{ background: date === d ? C.primary : C.bg, color: date === d ? 'white' : C.textMed, borderRadius: 999, padding: '10px 18px', fontSize: 13, fontWeight: date === d ? 600 : 500 }}>{d}</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {['今日','昨日'].map(d => (
+            <button key={d} onClick={() => setDate(d)} style={{ background: date === d ? C.primary : C.bg, color: date === d ? 'white' : C.textMed, borderRadius: 999, padding: '10px 18px', fontSize: 13, fontWeight: date === d ? 600 : 500, border: 'none', cursor: 'pointer' }}>{d}</button>
           ))}
+          <button onClick={() => setDate(TODAY)} style={{ background: isCustomDate ? C.primary : C.bg, color: isCustomDate ? 'white' : C.textMed, borderRadius: 999, padding: '10px 18px', fontSize: 13, fontWeight: isCustomDate ? 600 : 500, border: 'none', cursor: 'pointer' }}>日付選択</button>
         </div>
+        {isCustomDate && <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ marginTop: 10, background: C.bg, border: `1.5px solid ${C.primary}`, borderRadius: 10, padding: '10px 14px', fontSize: 14, color: C.text, outline: 'none' }} />}
       </Field>
 
       <Field label="カテゴリ">
@@ -799,27 +810,40 @@ function ExpenseForm({ onSave }) {
           {EXPENSE_CATS.filter(c => c.group === 'life').map(c => {
             const active = cat === c.name;
             return (
-              <button key={c.name} onClick={() => { setCat(c.name); if (c.group === 'biz' && div === '生活費') setDiv('事業費'); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+              <button key={c.name} onClick={() => setCat(c.name)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, border: 'none', background: 'transparent', cursor: 'pointer' }}>
                 <div style={{ width: 48, height: 48, background: active ? C.primary : C.infoBg, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: active ? '0 4px 12px rgba(9,125,96,0.3)' : 'none', fontSize: 18 }}>{c.emoji}</div>
                 <span style={{ fontSize: 9.5, fontWeight: active ? 600 : 500, color: active ? C.primary : C.textMed, whiteSpace: 'nowrap' }}>{c.name}</span>
               </button>
             );
           })}
+          <button onClick={() => setCat('その他')} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, border: 'none', background: 'transparent', cursor: 'pointer' }}>
+            <div style={{ width: 48, height: 48, background: cat === 'その他' && div !== '事業費' ? C.primary : C.bg, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px dashed ${C.border}`, fontSize: 18 }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2V14M2 8H14" stroke={C.textFaint} strokeWidth="1.8" strokeLinecap="round"/></svg>
+            </div>
+            <span style={{ fontSize: 9.5, color: C.textMed, whiteSpace: 'nowrap' }}>その他</span>
+          </button>
         </div>
         <div style={{ fontSize: 10, fontWeight: 600, color: C.textFaint, letterSpacing: '0.06em', marginBottom: 8 }}>仕事・クリエイター ──────</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 8 }}>
-          {EXPENSE_CATS.filter(c => c.group !== 'life').map(c => {
-            const active = cat === c.name, isOther = c.name === 'その他';
+          {EXPENSE_CATS.filter(c => c.group === 'biz').map(c => {
+            const active = cat === c.name;
             return (
-              <button key={c.name} onClick={() => { setCat(c.name); if (c.group === 'biz' && div === '生活費') setDiv('事業費'); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                <div style={{ width: 48, height: 48, background: isOther ? C.bg : (active ? '#4A6898' : '#EDF0F8'), borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: active ? '0 4px 12px rgba(74,104,152,0.3)' : 'none', border: isOther ? `1.5px dashed ${C.border}` : 'none', fontSize: 18 }}>
-                  {isOther ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2V14M2 8H14" stroke={C.textFaint} strokeWidth="1.8" strokeLinecap="round"/></svg> : c.emoji}
-                </div>
+              <button key={c.name} onClick={() => { setCat(c.name); if (div === '生活費') setDiv('事業費'); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, border: 'none', background: 'transparent', cursor: 'pointer' }}>
+                <div style={{ width: 48, height: 48, background: active ? '#4A6898' : '#EDF0F8', borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: active ? '0 4px 12px rgba(74,104,152,0.3)' : 'none', fontSize: 18 }}>{c.emoji}</div>
                 <span style={{ fontSize: 9.5, fontWeight: active ? 600 : 500, color: active ? '#4A6898' : C.textMed, whiteSpace: 'nowrap' }}>{c.name}</span>
               </button>
             );
           })}
+          <button onClick={() => { setCat('その他'); if (div === '生活費') setDiv('事業費'); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, border: 'none', background: 'transparent', cursor: 'pointer' }}>
+            <div style={{ width: 48, height: 48, background: C.bg, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px dashed ${C.border}`, fontSize: 18 }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2V14M2 8H14" stroke={C.textFaint} strokeWidth="1.8" strokeLinecap="round"/></svg>
+            </div>
+            <span style={{ fontSize: 9.5, color: C.textMed, whiteSpace: 'nowrap' }}>その他</span>
+          </button>
         </div>
+        {cat === 'その他' && (
+          <input value={catOther} onChange={e => setCatOther(e.target.value)} placeholder="カテゴリを入力..." style={{ marginTop: 12, background: C.bg, border: `1.5px solid ${C.primary}`, borderRadius: 10, padding: '10px 14px', fontSize: 14, color: C.text, outline: 'none', width: '100%' }} autoFocus />
+        )}
       </Field>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
@@ -863,6 +887,7 @@ function IncomeForm({ onSave }) {
   const [source, setSource] = useState('');
   const [date, setDate] = useState('今日');
   const [memo, setMemo] = useState('');
+  const isCustomDate = date !== '今日' && date !== '昨日';
   const s = Store.get('settings', {});
   const taxRate = s.taxRate || 20;
   const n = parseInt(amount) || 0, tax = Math.round(n * taxRate / 100);
@@ -902,10 +927,12 @@ function IncomeForm({ onSave }) {
         </Field>
         <Field label="入金日">
           <div style={{ display: 'flex', gap: 8 }}>
-            {['今日','昨日','日付'].map(d => (
-              <button key={d} onClick={() => setDate(d)} style={{ background: date === d ? C.primary : C.bg, color: date === d ? 'white' : C.textMed, borderRadius: 999, padding: '11px 18px', fontSize: 13, fontWeight: date === d ? 600 : 500 }}>{d}</button>
+            {['今日','昨日'].map(d => (
+              <button key={d} onClick={() => setDate(d)} style={{ background: date === d ? C.primary : C.bg, color: date === d ? 'white' : C.textMed, borderRadius: 999, padding: '11px 18px', fontSize: 13, fontWeight: date === d ? 600 : 500, border: 'none', cursor: 'pointer' }}>{d}</button>
             ))}
+            <button onClick={() => setDate(TODAY)} style={{ background: isCustomDate ? C.primary : C.bg, color: isCustomDate ? 'white' : C.textMed, borderRadius: 999, padding: '11px 18px', fontSize: 13, fontWeight: isCustomDate ? 600 : 500, border: 'none', cursor: 'pointer' }}>日付選択</button>
           </div>
+          {isCustomDate && <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ marginTop: 10, background: C.bg, border: `1.5px solid ${C.primary}`, borderRadius: 10, padding: '10px 14px', fontSize: 14, color: C.text, outline: 'none' }} />}
         </Field>
       </div>
 
@@ -1836,7 +1863,7 @@ function SettingsScreen({ go, user, onLogout }) {
 
   const exportData = () => {
     const data = {};
-    ['transactions','fixedExpenses','budgets','networth','settings'].forEach(k => {
+    ['transactions','fixedExpenses','budgets','networth','settings','cards'].forEach(k => {
       try { data[k] = JSON.parse(localStorage.getItem(k)); } catch(e) {}
     });
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1845,6 +1872,30 @@ function SettingsScreen({ go, user, onLogout }) {
     a.href = url; a.download = `jiyujin-${TODAY}.json`; a.click();
     URL.revokeObjectURL(url);
     showToast('データをエクスポートしました');
+  };
+
+  const importData = () => {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = '.json';
+    input.onchange = e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          ['transactions','fixedExpenses','budgets','networth','settings','cards'].forEach(k => {
+            if (data[k] != null) localStorage.setItem(k, JSON.stringify(data[k]));
+          });
+          showToast('データを復元しました。ページを再読み込みします...');
+          setTimeout(() => location.reload(), 1500);
+        } catch(err) {
+          showToast('ファイルの読み込みに失敗しました');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   };
 
   const cardCount = Store.get('cards', []).length;
@@ -1856,6 +1907,7 @@ function SettingsScreen({ go, user, onLogout }) {
     { label: '財産目録',            detail: nwData.assets.length > 0 ? `純資産 ¥${fmt(nwTotal)}` : '未設定', emoji: '📒', action: () => go('networth') },
     { label: '通知設定',            detail: notify ? 'オン' : 'オフ', emoji: '🔔', action: toggleNotify },
     { label: 'データの書き出し',    detail: 'JSONで保存',           emoji: '☁️', action: exportData },
+    { label: 'データの復元',        detail: 'JSONから読み込み',     emoji: '📥', action: importData },
   ];
 
   return (

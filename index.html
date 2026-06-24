@@ -2404,7 +2404,7 @@ function SettingsScreen({ go, user, onLogout }) {
 
   const exportData = () => {
     const data = {};
-    ['transactions','fixedExpenses','budgets','networth','settings'].forEach(k => {
+    ['transactions','fixedExpenses','budgets','networth','settings','cards'].forEach(k => {
       try { data[k] = JSON.parse(localStorage.getItem(k)); } catch(e) {}
     });
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -2413,6 +2413,30 @@ function SettingsScreen({ go, user, onLogout }) {
     a.href = url; a.download = `jiyujin-${TODAY}.json`; a.click();
     URL.revokeObjectURL(url);
     showToast('データをエクスポートしました');
+  };
+
+  const importData = () => {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = '.json';
+    input.onchange = e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          ['transactions','fixedExpenses','budgets','networth','settings','cards'].forEach(k => {
+            if (data[k] != null) localStorage.setItem(k, JSON.stringify(data[k]));
+          });
+          showToast('データを復元しました。ページを再読み込みします...');
+          setTimeout(() => location.reload(), 1500);
+        } catch(err) {
+          showToast('ファイルの読み込みに失敗しました');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   };
 
   const cardCount = Store.get('cards', []).length;
@@ -2424,6 +2448,7 @@ function SettingsScreen({ go, user, onLogout }) {
     { label: '財産目録',            detail: nwData.assets.length > 0 ? `純資産 ¥${fmt(nwTotal)}` : '未設定', emoji: '📒', action: () => go('networth') },
     { label: '通知設定',            detail: notify ? 'オン' : 'オフ', emoji: '🔔', action: toggleNotify },
     { label: 'データの書き出し',    detail: 'JSONで保存',           emoji: '☁️', action: exportData },
+    { label: 'データの復元',        detail: 'JSONから読み込み',     emoji: '📥', action: importData },
   ];
 
   return (
