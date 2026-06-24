@@ -355,11 +355,12 @@ function BusinessScreen({ go }) {
   const currYm = TODAY.slice(0,7);
   const [selYm, setSelYm] = useState(currYm);
 
+  const isBizIncome = t => t.division === '事業収入' || (!t.division && !['給与','アルバイト'].includes(t.source));
   const months = Array.from({length:6}, (_, i) => {
     const d = new Date(today.getFullYear(), today.getMonth()-5+i, 1);
     const ym = d.toISOString().slice(0,7);
     const mT = allTxns.filter(t=>t.date&&t.date.startsWith(ym));
-    const revenue = mT.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+    const revenue = mT.filter(t=>t.type==='income'&&isBizIncome(t)).reduce((s,t)=>s+t.amount,0);
     const expenses = mT.filter(t=>t.type==='expense'&&t.division==='事業費').reduce((s,t)=>s+t.amount,0);
     return { label:`${d.getMonth()+1}月`, ym, revenue, expenses, profit:revenue-expenses, isCurrent:i===5 };
   });
@@ -375,7 +376,7 @@ function BusinessScreen({ go }) {
   const scaleH = v => Math.round(v/maxVal*100);
 
   const selTxns = allTxns.filter(t=>t.date&&t.date.startsWith(selYm)&&t.type==='expense'&&t.division==='事業費').sort((a,b)=>b.date.localeCompare(a.date));
-  const selIncome = allTxns.filter(t=>t.date&&t.date.startsWith(selYm)&&t.type==='income').sort((a,b)=>b.date.localeCompare(a.date));
+  const selIncome = allTxns.filter(t=>t.date&&t.date.startsWith(selYm)&&t.type==='income'&&isBizIncome(t)).sort((a,b)=>b.date.localeCompare(a.date));
   const selExpTotal = selTxns.reduce((s,t)=>s+t.amount,0);
   const selIncTotal = selIncome.reduce((s,t)=>s+t.amount,0);
 
@@ -573,6 +574,7 @@ function HomeScreen({ go }) {
   const { selYm } = React.useContext(MonthCtx);
   const s = Store.get('settings', {});
   const userType = s.userType || 'freelance';
+  const isBiz = userType !== 'employee';
   const settingsIncome = (s.salary||0) + (s.sideIncome||0) + (s.income||0);
   const taxRate = s.taxRate || (userType === 'employee' ? 0 : 20);
   const savingsGoal = s.savingsGoal || 0;
@@ -610,6 +612,8 @@ function HomeScreen({ go }) {
   const lifeBizSpent  = lifeSpent + bizSpent;
   const lifeBizLeft   = Math.max(0, lifeBizBudget - lifeBizSpent);
   const dailyBudget   = daysLeft > 0 ? Math.round(lifeBizLeft / daysLeft) : 0;
+  const lifeLeft      = Math.max(0, lifeBudget - lifeSpent);
+  const bizLeft       = Math.max(0, bizBudget  - bizSpent);
 
   const dailyRate = daysSoFar > 0 ? lifeBizSpent / daysSoFar : 0;
   const projected = dailyRate * daysInMonth;
@@ -645,11 +649,30 @@ function HomeScreen({ go }) {
       <div style={{ background:'linear-gradient(135deg, #1D2A22 0%, #0B1F17 100%)', borderRadius:22, padding:'28px 32px', marginBottom:20, position:'relative', overflow:'hidden', display:'grid', gridTemplateColumns:'1.4fr 1fr 1fr', gap:24, alignItems:'center' }}>
         <div style={{ position:'absolute', right:-60, top:-60, width:220, height:220, background:'rgba(9,125,96,0.12)', borderRadius:'50%', pointerEvents:'none' }} />
         <div>
-          <div style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.45)', marginBottom:4, letterSpacing:'0.02em' }}>今月あと使える金額</div>
-          <div style={{ display:'flex', alignItems:'baseline', gap:7, marginBottom:6 }}>
-            <span style={{ fontSize:64, fontWeight:700, color: lifeBizLeft > 0 ? 'white' : '#f87171', letterSpacing:'-3px', fontFeatureSettings:tnum, lineHeight:1 }}>¥{fmt(lifeBizLeft)}</span>
-          </div>
-          <div style={{ fontSize:13, color:'rgba(255,255,255,0.35)', marginBottom:8 }}>残り{daysLeft}日 · 1日あたり ¥{fmt(dailyBudget)} ペース</div>
+          {isBiz ? (
+            <>
+              <div style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.45)', marginBottom:10, letterSpacing:'0.02em' }}>今月あと使える金額</div>
+              <div style={{ display:'flex', gap:10, marginBottom:8 }}>
+                <div style={{ flex:1, background:'rgba(255,255,255,0.07)', borderRadius:12, padding:'12px 16px' }}>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.42)', marginBottom:4 }}>🏠 生活費あと</div>
+                  <div style={{ fontSize:28, fontWeight:700, color: lifeLeft > 0 ? '#A8E6CF' : '#f87171', fontFeatureSettings:tnum, letterSpacing:'-1px' }}>¥{fmt(lifeLeft)}</div>
+                </div>
+                <div style={{ flex:1, background:'rgba(255,255,255,0.07)', borderRadius:12, padding:'12px 16px' }}>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.42)', marginBottom:4 }}>💼 事業費あと</div>
+                  <div style={{ fontSize:28, fontWeight:700, color: bizLeft > 0 ? '#6EDBB8' : '#f87171', fontFeatureSettings:tnum, letterSpacing:'-1px' }}>¥{fmt(bizLeft)}</div>
+                </div>
+              </div>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,0.35)', marginBottom:8 }}>残り{daysLeft}日 · 1日あたり ¥{fmt(dailyBudget)} ペース</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.45)', marginBottom:4, letterSpacing:'0.02em' }}>今月あと使える金額</div>
+              <div style={{ display:'flex', alignItems:'baseline', gap:7, marginBottom:6 }}>
+                <span style={{ fontSize:64, fontWeight:700, color: lifeBizLeft > 0 ? 'white' : '#f87171', letterSpacing:'-3px', fontFeatureSettings:tnum, lineHeight:1 }}>¥{fmt(lifeBizLeft)}</span>
+              </div>
+              <div style={{ fontSize:13, color:'rgba(255,255,255,0.35)', marginBottom:8 }}>残り{daysLeft}日 · 1日あたり ¥{fmt(dailyBudget)} ペース</div>
+            </>
+          )}
           {(settingsIncome > 0 || confirmedIncome > 0) && (
             <div style={{ display:'flex', gap:12, fontSize:12 }}>
               <span style={{ color:'rgba(255,255,255,0.35)' }}>確定 <span style={{ color:'rgba(255,255,255,0.72)', fontFeatureSettings:tnum, fontWeight:600 }}>¥{fmt(confirmedIncome)}</span></span>
@@ -990,18 +1013,20 @@ function ExpenseForm({ onSave }) {
 function IncomeForm({ onSave }) {
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('確定収入');
+  const [incDiv, setIncDiv] = useState('事業収入');
   const [source, setSource] = useState('');
   const [date, setDate] = useState('今日');
   const [memo, setMemo] = useState('');
   const isCustomDate = date !== '今日' && date !== '昨日';
   const s = Store.get('settings', {});
+  const isBiz = (s.userType || 'freelance') !== 'employee';
   const taxRate = s.taxRate || 20;
   const n = parseInt(amount) || 0, tax = Math.round(n * taxRate / 100);
   const inputStyle = { background: C.bg, borderRadius: 12, padding: '13px 16px', fontSize: 14, color: C.text, border: 'none', width: '100%', outline: 'none' };
 
   const save = () => {
     if (!n || n <= 0) return;
-    const txn = { id: Date.now(), type: 'income', amount: n, incomeType: type, source, memo, date: resolveDate(date) };
+    const txn = { id: Date.now(), type: 'income', amount: n, incomeType: type, division: isBiz ? incDiv : '給与・その他', source, memo, date: resolveDate(date) };
     Store.set('transactions', [txn, ...Store.get('transactions', [])]);
     setAmount(''); setMemo(''); setSource(''); setDate('今日');
     onSave && onSave();
@@ -1021,6 +1046,13 @@ function IncomeForm({ onSave }) {
         <Seg options={['確定収入','見込み収入']} value={type} set={setType} />
         <div style={{ marginTop: 10, fontSize: 11, color: C.textMuted, lineHeight: 1.7 }}>確定収入：請求済み・入金済みの収入　/　見込み収入：進行中の案件や予定収入</div>
       </Field>
+
+      {isBiz && (
+        <Field label="収入の種別">
+          <Seg options={['事業収入','給与・その他']} value={incDiv} set={setIncDiv} />
+          <div style={{ marginTop: 10, fontSize: 11, color: C.textMuted, lineHeight: 1.7 }}>事業収入：フリーランス・副業収入　/　給与・その他：給与・アルバイト</div>
+        </Field>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 22 }}>
         <Field label="収入源">
@@ -1950,7 +1982,7 @@ function FixedExpensesScreen({ go }) {
                       </select>
                     ) : (
                       <select value={form.day} onChange={e => setForm(f=>({...f, day: e.target.value}))} style={{ ...inputStyle, fontSize: 13 }}>
-                        {['毎月1日','毎月5日','毎月10日','毎月15日','毎月20日','毎月25日','毎月末日'].map(d => <option key={d}>{d}</option>)}
+                        {[...Array.from({length:31},(_,i)=>`毎月${i+1}日`), '毎月末日'].map(d => <option key={d}>{d}</option>)}
                       </select>
                     )}
                   </div>
