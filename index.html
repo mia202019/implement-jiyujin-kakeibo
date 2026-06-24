@@ -2416,7 +2416,7 @@ function FixedExpensesScreen({ go }) {
               <div>
                 <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 5, fontWeight: 600 }}>用途区分</div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  {['生活費','事業費'].map(d => (
+                  {['生活費','事業費','投資'].map(d => (
                     <button key={d} onClick={() => setForm(f=>({...f, division:d}))} style={{ flex:1, background: form.division===d ? C.primary : C.bg, color: form.division===d ? 'white' : C.text, borderRadius:10, padding:'9px', fontSize:13, fontWeight:700, border:'none', cursor:'pointer' }}>{d}</button>
                   ))}
                 </div>
@@ -2501,6 +2501,7 @@ function FixedExpensesScreen({ go }) {
                         </div>
                       </div>
                       {item.division === '事業費' && <span style={{ fontSize: 9, fontWeight: 700, color: C.primary, background: C.primaryLight, borderRadius: 5, padding: '2px 6px', flexShrink: 0 }}>事業費</span>}
+                      {item.division === '投資' && <span style={{ fontSize: 9, fontWeight: 700, color: C.invest, background: C.invest+'22', borderRadius: 5, padding: '2px 6px', flexShrink: 0 }}>投資</span>}
                       {item.active && registered && <span style={{ fontSize: 9, fontWeight: 700, color: '#6366f1', background: '#EEF2FF', borderRadius: 5, padding: '2px 6px', flexShrink: 0 }}>登録済</span>}
                       {item.cycle === 'yearly' && <span style={{ fontSize: 9, fontWeight: 700, color: C.invest, background: C.invest+'18', borderRadius: 5, padding: '2px 6px', flexShrink: 0 }}>年払</span>}
                       <div style={{ fontSize: 14, fontWeight: 700, color: item.active ? C.text : C.textMuted, fontFeatureSettings: "'tnum'", flexShrink: 0 }}>¥{fmt(item.amount)}</div>
@@ -2524,7 +2525,7 @@ function FixedExpensesScreen({ go }) {
                             ))}
                           </div>
                           <div style={{ display: 'flex', gap: 6 }}>
-                            {['生活費','事業費'].map(d => (
+                            {['生活費','事業費','投資'].map(d => (
                               <button key={d} onClick={() => setEditForm(f=>({...f, division:d}))} style={{ flex:1, background: editForm.division===d ? C.primary : C.bg, color: editForm.division===d ? 'white' : C.text, borderRadius:8, padding:'8px', fontSize:12, fontWeight:700, border:'none', cursor:'pointer' }}>{d}</button>
                             ))}
                           </div>
