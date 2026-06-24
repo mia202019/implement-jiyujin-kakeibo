@@ -87,19 +87,16 @@ const CAT_EMOJI = {
 };
 const EXPENSE_CATS = [
   { name:'食費',       emoji:'🛒', group:'life' },
-  { name:'外食',       emoji:'🍜', group:'life' },
   { name:'交通費',     emoji:'🚌', group:'life' },
   { name:'日用品',     emoji:'🧴', group:'life' },
   { name:'美容・衣服', emoji:'👗', group:'life' },
   { name:'医療・健康', emoji:'💊', group:'life' },
-  { name:'通信費',     emoji:'📱', group:'life' },
   { name:'趣味・娯楽', emoji:'🎮', group:'life' },
   { name:'材料費',     emoji:'🎨', group:'biz'  },
   { name:'機材・ソフト',emoji:'💻', group:'biz'  },
   { name:'出店料',     emoji:'🏪', group:'biz'  },
   { name:'交際費',     emoji:'🥂', group:'biz'  },
   { name:'教育・学習', emoji:'📚', group:'biz'  },
-  { name:'その他',     emoji:'📋', group:'other' },
 ];
 const INVEST_TYPES = ['積立NISA','一般NISA','iDeCo','株式・投資信託','貯蓄・その他'];
 const INCOME_PRESETS = ['ハンドメイド','WEBデザイン','ライティング','ネット販売','給与','アルバイト'];
@@ -109,7 +106,16 @@ const DEFAULT_CARDS = [
   { id: 'cash-def', name: '現金',   last4: '' },
   { id: 'pp-def',   name: 'PayPay', last4: '' },
 ];
-function getCards() { const c = Store.get('cards', []); return c.length ? c : DEFAULT_CARDS; }
+function getCards() {
+  const c = Store.get('cards', []);
+  if (!c.length) return DEFAULT_CARDS;
+  const names = new Set(c.map(x => x.name));
+  const extras = [
+    { id: 'cash-base', name: '現金',   last4: '' },
+    { id: 'pp-base',   name: 'PayPay', last4: '' },
+  ].filter(x => !names.has(x.name));
+  return [...c, ...extras];
+}
 function cardColor(cards, name) { const i = cards.findIndex(c=>c.name===name); return i>=0 ? CARD_PALETTE[i%CARD_PALETTE.length] : '#9ca3af'; }
 
 // ── Shared components ──────────────────────────────────────────────────────
@@ -996,15 +1002,19 @@ function ExpenseInput({ onBack, onDone }) {
   const [amount, setAmount] = useState('');
   const [date,   setDate]   = useState('今日');
   const [cat,    setCat]    = useState('食費');
+  const [catOther, setCatOther] = useState('');
   const [div,    setDiv]    = useState('生活費');
   const [investType, setInvestType] = useState('積立NISA');
-  const [pay,    setPay]    = useState('カード');
+  const [pay,    setPay]    = useState(() => getCards()[0]?.name || '現金');
   const [memo,   setMemo]   = useState('');
+
+  const isCustomDate = date !== '今日' && date !== '昨日';
+  const finalCat = cat === 'その他' ? (catOther.trim() || 'その他') : cat;
 
   const save = () => {
     const n = parseInt(amount);
     if (!n || n <= 0) return;
-    const txn = { id: Date.now(), type: 'expense', amount: n, category: cat, division: div, payment: pay, memo, date: resolveDate(date), ...(div==='投資' ? {investType} : {}) };
+    const txn = { id: Date.now(), type: 'expense', amount: n, category: finalCat, division: div, payment: pay, memo, date: resolveDate(date), ...(div==='投資' ? {investType} : {}) };
     Store.set('transactions', [txn, ...Store.get('transactions', [])]);
     onDone();
   };
@@ -1031,55 +1041,67 @@ function ExpenseInput({ onBack, onDone }) {
         </Card>
 
         {/* Date */}
-        {(() => {
-          const isCustom = date !== '今日' && date !== '昨日';
-          return (
-            <>
-              <div style={{ display: 'flex', gap: 8, marginBottom: isCustom ? 10 : 16 }}>
-                {['今日','昨日'].map(d => (
-                  <button key={d} onClick={() => setDate(d)} style={{ background: date===d ? C.primary : 'white', color: date===d ? 'white' : C.textMed, borderRadius: 999, padding: '10px 18px', fontSize: 13, fontWeight: date===d ? 600 : 500, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border:'none', cursor:'pointer' }}>{d}</button>
-                ))}
-                <button onClick={() => setDate(isCustom ? date : TODAY)} style={{ background: isCustom ? C.primary : 'white', color: isCustom ? 'white' : C.textMed, borderRadius: 999, padding: '10px 18px', fontSize: 13, fontWeight: isCustom ? 600 : 500, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border:'none', cursor:'pointer' }}>
-                  {isCustom ? date : '日付選択'}
-                </button>
-              </div>
-              {isCustom && (
-                <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                  style={{ width: '100%', marginBottom: 16, padding: '12px 16px', fontSize: 14, fontWeight: 600, border: `1.5px solid ${C.border}`, borderRadius: 12, background: 'white', color: C.text, outline: 'none' }} />
-              )}
-            </>
-          );
-        })()}
+        <div style={{ display: 'flex', gap: 8, marginBottom: isCustomDate ? 10 : 16 }}>
+          {['今日','昨日'].map(d => (
+            <button key={d} onClick={() => setDate(d)} style={{ background: date===d ? C.primary : 'white', color: date===d ? 'white' : C.textMed, borderRadius: 999, padding: '10px 18px', fontSize: 13, fontWeight: date===d ? 600 : 500, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border:'none', cursor:'pointer' }}>{d}</button>
+          ))}
+          <button onClick={() => { if (!isCustomDate) setDate(TODAY); }} style={{ background: isCustomDate ? C.primary : 'white', color: isCustomDate ? 'white' : C.textMed, borderRadius: 999, padding: '10px 18px', fontSize: 13, fontWeight: isCustomDate ? 600 : 500, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border:'none', cursor:'pointer' }}>
+            {isCustomDate ? date : '日付選択'}
+          </button>
+        </div>
+        {isCustomDate && (
+          <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            style={{ width: '100%', marginBottom: 16, padding: '12px 16px', fontSize: 14, fontWeight: 600, border: `1.5px solid ${C.border}`, borderRadius: 12, background: 'white', color: C.text, outline: 'none', WebkitAppearance: 'none', appearance: 'none' }} />
+        )}
 
         {/* Category */}
         <Card style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 10 }}>カテゴリ</div>
+
           <div style={{ fontSize: 10, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>生活費</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
             {EXPENSE_CATS.filter(c => c.group === 'life').map(c => {
               const active = cat === c.name;
               return (
-                <button key={c.name} onClick={() => setCat(c.name)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: 48, height: 48, background: active ? C.primary : C.infoBg, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: active ? '0 4px 12px rgba(9,125,96,0.3)' : 'none', fontSize: 20 }}>{c.emoji}</div>
-                  <span style={{ fontSize: 9, fontWeight: active ? 600 : 500, color: active ? C.primary : C.textMed, lineHeight: 1.2, textAlign: 'center' }}>{c.name}</span>
+                <button key={c.name} onClick={() => { setCat(c.name); setCatOther(''); }} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, background:'none', border:'none', cursor:'pointer' }}>
+                  <div style={{ width:48, height:48, background:active?C.primary:C.infoBg, borderRadius:13, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:active?'0 4px 12px rgba(9,125,96,0.3)':'none', fontSize:20 }}>{c.emoji}</div>
+                  <span style={{ fontSize:9, fontWeight:active?600:500, color:active?C.primary:C.textMed, lineHeight:1.2, textAlign:'center' }}>{c.name}</span>
                 </button>
               );
             })}
+            <button onClick={() => setCat('その他')} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, background:'none', border:'none', cursor:'pointer' }}>
+              <div style={{ width:48, height:48, background:cat==='その他'?C.primary:C.bg, borderRadius:13, display:'flex', alignItems:'center', justifyContent:'center', border:cat==='その他'?'none':`1.5px dashed ${C.border}`, fontSize:20 }}>
+                {cat==='その他' ? '🏷' : <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2V14M2 8H14" stroke={C.textFaint} strokeWidth="1.8" strokeLinecap="round"/></svg>}
+              </div>
+              <span style={{ fontSize:9, fontWeight:cat==='その他'?600:500, color:cat==='その他'?C.primary:C.textMed, lineHeight:1.2, textAlign:'center' }}>その他</span>
+            </button>
           </div>
+
           <div style={{ fontSize: 10, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>仕事・クリエイター</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-            {EXPENSE_CATS.filter(c => c.group !== 'life').map(c => {
-              const active = cat === c.name, isOther = c.name === 'その他';
+            {EXPENSE_CATS.filter(c => c.group === 'biz').map(c => {
+              const active = cat === c.name;
               return (
-                <button key={c.name} onClick={() => { setCat(c.name); if (c.group === 'biz' && div === '生活費') setDiv('事業費'); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: 48, height: 48, background: isOther ? C.bg : (active ? '#4A6898' : '#EDF0F8'), borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: active ? '0 4px 12px rgba(74,104,152,0.3)' : 'none', border: isOther ? `1.5px dashed ${C.border}` : 'none', fontSize: 20 }}>
-                    {isOther ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2V14M2 8H14" stroke={C.textFaint} strokeWidth="1.8" strokeLinecap="round"/></svg> : c.emoji}
-                  </div>
-                  <span style={{ fontSize: 9, fontWeight: active ? 600 : 500, color: active ? '#4A6898' : C.textMed, lineHeight: 1.2, textAlign: 'center' }}>{c.name}</span>
+                <button key={c.name} onClick={() => { setCat(c.name); setCatOther(''); if (div === '生活費') setDiv('事業費'); }} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, background:'none', border:'none', cursor:'pointer' }}>
+                  <div style={{ width:48, height:48, background:active?'#4A6898':'#EDF0F8', borderRadius:13, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:active?'0 4px 12px rgba(74,104,152,0.3)':'none', fontSize:20 }}>{c.emoji}</div>
+                  <span style={{ fontSize:9, fontWeight:active?600:500, color:active?'#4A6898':C.textMed, lineHeight:1.2, textAlign:'center' }}>{c.name}</span>
                 </button>
               );
             })}
+            <button onClick={() => { setCat('その他'); if (div === '生活費') setDiv('事業費'); }} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, background:'none', border:'none', cursor:'pointer' }}>
+              <div style={{ width:48, height:48, background:C.bg, borderRadius:13, display:'flex', alignItems:'center', justifyContent:'center', border:`1.5px dashed ${C.border}`, fontSize:20 }}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2V14M2 8H14" stroke={C.textFaint} strokeWidth="1.8" strokeLinecap="round"/></svg>
+              </div>
+              <span style={{ fontSize:9, color:C.textMed, lineHeight:1.2, textAlign:'center' }}>その他</span>
+            </button>
           </div>
+
+          {cat === 'その他' && (
+            <div style={{ marginTop: 12 }}>
+              <input value={catOther} onChange={e => setCatOther(e.target.value)} placeholder="例：電気代、クリーニング..."
+                style={{ width:'100%', fontSize:14, padding:'12px 16px', border:`1.5px solid ${C.border}`, borderRadius:12, outline:'none', background:C.bg, color:C.text }} />
+            </div>
+          )}
         </Card>
 
         {/* Division */}
@@ -1139,6 +1161,7 @@ function IncomeInput({ onBack, onDone }) {
   const [date,   setDate]   = useState('今日');
   const [memo,   setMemo]   = useState('');
 
+  const isCustomDate = date !== '今日' && date !== '昨日';
   const s = Store.get('settings', {});
   const taxRate = s.taxRate || 20;
   const n = parseInt(amount) || 0;
@@ -1198,25 +1221,18 @@ function IncomeInput({ onBack, onDone }) {
           <input value={source} onChange={e => setSource(e.target.value)} placeholder="またはここに入力..."
             style={{ background: C.bg, borderRadius: 12, padding: '13px 16px', fontSize: 14, color: C.text, border: 'none', width: '100%', outline: 'none', marginBottom: 16 }} />
           <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>入金日</div>
-          {(() => {
-            const isCustom = date !== '今日' && date !== '昨日';
-            return (
-              <>
-                <div style={{ display: 'flex', gap: 8, marginBottom: isCustom ? 10 : 0 }}>
-                  {['今日','昨日'].map(d => (
-                    <button key={d} onClick={() => setDate(d)} style={{ background: date===d ? C.primary : C.bg, color: date===d ? 'white' : C.textMed, borderRadius: 999, padding: '10px 20px', fontSize: 13, fontWeight: date===d ? 600 : 500, border:'none', cursor:'pointer' }}>{d}</button>
-                  ))}
-                  <button onClick={() => setDate(isCustom ? date : TODAY)} style={{ background: isCustom ? C.primary : C.bg, color: isCustom ? 'white' : C.textMed, borderRadius: 999, padding: '10px 20px', fontSize: 13, fontWeight: isCustom ? 600 : 500, border:'none', cursor:'pointer' }}>
-                    {isCustom ? date : '日付選択'}
-                  </button>
-                </div>
-                {isCustom && (
-                  <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                    style={{ width: '100%', marginTop: 10, padding: '12px 16px', fontSize: 14, fontWeight: 600, border: `1.5px solid ${C.border}`, borderRadius: 12, background: 'white', color: C.text, outline: 'none' }} />
-                )}
-              </>
-            );
-          })()}
+          <div style={{ display: 'flex', gap: 8, marginBottom: isCustomDate ? 10 : 0 }}>
+            {['今日','昨日'].map(d => (
+              <button key={d} onClick={() => setDate(d)} style={{ background: date===d ? C.primary : C.bg, color: date===d ? 'white' : C.textMed, borderRadius: 999, padding: '10px 20px', fontSize: 13, fontWeight: date===d ? 600 : 500, border:'none', cursor:'pointer' }}>{d}</button>
+            ))}
+            <button onClick={() => { if (!isCustomDate) setDate(TODAY); }} style={{ background: isCustomDate ? C.primary : C.bg, color: isCustomDate ? 'white' : C.textMed, borderRadius: 999, padding: '10px 20px', fontSize: 13, fontWeight: isCustomDate ? 600 : 500, border:'none', cursor:'pointer' }}>
+              {isCustomDate ? date : '日付選択'}
+            </button>
+          </div>
+          {isCustomDate && (
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              style={{ width: '100%', marginTop: 10, padding: '12px 16px', fontSize: 14, fontWeight: 600, border: `1.5px solid ${C.border}`, borderRadius: 12, background: 'white', color: C.text, outline: 'none', WebkitAppearance: 'none', appearance: 'none' }} />
+          )}
         </Card>
 
         {/* Tax auto-calc */}
