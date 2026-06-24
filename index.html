@@ -165,7 +165,9 @@ function LoginScreen({ onLogin, onSkip }) {
   return (
     <Screen bg="linear-gradient(160deg, #EFF8F5 0%, #D4E8E3 55%, #D4E8E3 100%)">
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 40px' }}>
-        <img src="logo.png" alt="logo" style={{ width: 88, height: 88, borderRadius: 22, display: 'block', marginBottom: 28, mixBlendMode: 'multiply' }} />
+        <div style={{ width: 80, height: 80, borderRadius: 20, overflow: 'hidden', marginBottom: 28, boxShadow: '0 8px 24px rgba(9,125,96,0.15)' }}>
+          <img src="logo.png" alt="logo" style={{ width: '115%', height: '115%', margin: '-7.5%', display: 'block' }} />
+        </div>
         <div style={{ fontSize: 28, fontWeight: 700, color: C.text, letterSpacing: '-0.6px', marginBottom: 10, textAlign: 'center' }}>自由人家計簿</div>
         <div style={{ fontSize: 15, color: C.textMed, textAlign: 'center', lineHeight: 1.75, marginBottom: 6 }}>自由になるために、</div>
         <div style={{ fontSize: 15, color: C.textMed, textAlign: 'center', lineHeight: 1.75 }}>まず家計管理から。</div>
