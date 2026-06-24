@@ -137,6 +137,8 @@ const NAV = [
     icon: a => <svg width="20" height="20" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9" fill={a ? 'white' : 'none'} stroke={a ? 'none' : C.textMuted} strokeWidth="1.6"/><path d="M11 6V11L14 13" stroke={a ? C.primary : C.textMuted} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg> },
   { key: 'report',   label: 'レポート',
     icon: a => <svg width="20" height="20" viewBox="0 0 22 22" fill="none"><rect x="2" y="12" width="4" height="8" rx="1.5" fill={a ? 'white' : C.textMuted}/><rect x="9" y="7" width="4" height="13" rx="1.5" fill={a ? 'white' : C.textMuted}/><rect x="16" y="3" width="4" height="17" rx="1.5" fill={a ? 'white' : C.textMuted}/></svg> },
+  { key: 'networth', label: '財産目録',
+    icon: a => <svg width="20" height="20" viewBox="0 0 22 22" fill="none"><rect x="3" y="2" width="16" height="18" rx="2.5" fill={a ? 'white' : 'none'} stroke={a ? 'none' : C.textMuted} strokeWidth="1.6"/><path d="M7 7H15M7 11H12M7 15H10" stroke={a ? C.primary : C.textMuted} strokeWidth="1.6" strokeLinecap="round"/><circle cx="15" cy="15" r="3.5" fill={a ? C.primary : 'none'} stroke={a ? 'none' : C.textMuted} strokeWidth="1.4"/><path d="M15 13.5V15.5M14 15H16" stroke={a ? 'white' : C.textMuted} strokeWidth="1.2" strokeLinecap="round"/></svg> },
   { key: 'settings', label: '設定',
     icon: a => <svg width="20" height="20" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="3" stroke={a ? 'white' : C.textMuted} strokeWidth="1.6"/><path d="M11 2V4M11 18V20M2 11H4M18 11H20M4.22 4.22L5.64 5.64M16.36 16.36L17.78 17.78M4.22 17.78L5.64 16.36M16.36 5.64L17.78 4.22" stroke={a ? 'white' : C.textMuted} strokeWidth="1.6" strokeLinecap="round"/></svg> },
 ];
@@ -968,6 +970,203 @@ function ReportScreen({ go }) {
   );
 }
 
+// ── NET WORTH / 財産目録 ─────────────────────────────────────────────────────
+const NW_ASSET_CATS = [
+  { id: 'cash',     name: '現金',       emoji: '💴', color: '#4A6898' },
+  { id: 'savings',  name: '預金',       emoji: '🏦', color: '#097D60' },
+  { id: 'stocks',   name: '投資・株式', emoji: '📈', color: '#E8935F' },
+  { id: 'property', name: '不動産',     emoji: '🏠', color: '#6A5E9C' },
+  { id: 'other',    name: 'その他',     emoji: '📋', color: '#9CA3AF' },
+];
+const NW_LIAB_CATS = [
+  { id: 'mortgage', name: '住宅ローン',   emoji: '🏦', color: '#C8748E' },
+  { id: 'loan',     name: '奨学金ローン', emoji: '🎓', color: '#DC6B6B' },
+  { id: 'other',    name: 'その他ローン', emoji: '💳', color: '#9CA3AF' },
+];
+
+function NetWorthScreen({ go }) {
+  const [data, setData] = useState(() => Store.get('networth', { assets: [], liabilities: [] }));
+  const [viewTab, setViewTab] = useState('assets');
+  const [showForm, setShowForm] = useState(false);
+  const [formTab, setFormTab] = useState('assets');
+  const [form, setForm] = useState({ name: '', institution: '', amount: '', cat: 'savings' });
+
+  const save = () => {
+    if (!form.name || !form.amount) return;
+    const item = { id: Date.now(), name: form.name, institution: form.institution, amount: Number(form.amount), cat: form.cat };
+    const next = { ...data, [formTab]: [...data[formTab], item], updatedAt: TODAY };
+    setData(next); Store.set('networth', next);
+    setForm({ name: '', institution: '', amount: '', cat: formTab === 'assets' ? 'savings' : 'mortgage' });
+    setShowForm(false);
+  };
+  const remove = (type, id) => {
+    const next = { ...data, [type]: data[type].filter(i => i.id !== id), updatedAt: TODAY };
+    setData(next); Store.set('networth', next);
+  };
+
+  const totalAssets = data.assets.reduce((s,i) => s+i.amount, 0);
+  const totalLiab   = data.liabilities.reduce((s,i) => s+i.amount, 0);
+  const netWorth    = totalAssets - totalLiab;
+  const nwPos       = netWorth >= 0;
+  const viewItems   = data[viewTab];
+  const viewCats    = viewTab === 'assets' ? NW_ASSET_CATS : NW_LIAB_CATS;
+  const inputStyle  = { background: C.bg, borderRadius: 10, padding: '11px 14px', fontSize: 14, color: C.text, border: `1.5px solid ${C.border}`, width: '100%', outline: 'none' };
+
+  return (
+    <Shell active="networth" go={go} title="財産目録" subtitle="資産と負債を管理して純資産を把握する" maxWidth={1100}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 20, alignItems: 'start' }}>
+
+        {/* Left column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <Card>
+            <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 600, marginBottom: 6 }}>純資産　①−②</div>
+            <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-2px', fontFeatureSettings: tnum, color: nwPos ? C.primary : C.warning }}>
+              {nwPos ? '' : '−'}¥{fmt(Math.abs(netWorth))}
+            </div>
+            {data.updatedAt && <div style={{ fontSize: 11, color: C.textFaint, marginTop: 4 }}>最終更新 {data.updatedAt}</div>}
+            <div style={{ height: 1, background: C.border, margin: '16px 0' }} />
+            <div style={{ display: 'flex', gap: 16 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 3 }}>プラスの財産 ①</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: C.primary, fontFeatureSettings: tnum }}>¥{fmt(totalAssets)}</div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 3 }}>マイナスの財産 ②</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: C.warning, fontFeatureSettings: tnum }}>¥{fmt(totalLiab)}</div>
+              </div>
+            </div>
+          </Card>
+
+          <button onClick={() => setShowForm(v => !v)} className="lift" style={{ width: '100%', background: C.primary, color: 'white', borderRadius: 12, padding: '12px', fontSize: 14, fontWeight: 700, boxShadow: '0 6px 18px rgba(9,125,96,0.28)' }}>
+            {showForm ? '× 閉じる' : '+ 財産を追加'}
+          </button>
+
+          {showForm && (
+            <Card>
+              <div style={{ display: 'flex', background: C.bg, borderRadius: 12, padding: 3, gap: 3, marginBottom: 16 }}>
+                {[{k:'assets',l:'プラスの財産'},{k:'liabilities',l:'マイナスの財産'}].map(t => (
+                  <button key={t.k} onClick={() => { setFormTab(t.k); setForm(f=>({...f, cat: t.k==='assets'?'savings':'mortgage'})); }}
+                    style={{ flex:1, background: formTab===t.k ? C.primary : 'transparent', color: formTab===t.k ? 'white' : C.textMuted, borderRadius: 10, padding: '8px', fontSize: 12, fontWeight: formTab===t.k ? 700 : 400 }}>{t.l}</button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 6 }}>名称</div>
+                  <input value={form.name} onChange={e => setForm(f=>({...f, name: e.target.value}))} placeholder="例：普通預金、○○株式" style={inputStyle} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 6 }}>金融機関名（任意）</div>
+                  <input value={form.institution} onChange={e => setForm(f=>({...f, institution: e.target.value}))} placeholder="例：○○銀行" style={inputStyle} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 6 }}>金額（円）</div>
+                  <input type="number" value={form.amount} onChange={e => setForm(f=>({...f, amount: e.target.value}))} placeholder="0" style={{ ...inputStyle, fontSize: 22, fontWeight: 700 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 6 }}>カテゴリ</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    {(formTab === 'assets' ? NW_ASSET_CATS : NW_LIAB_CATS).map(c => (
+                      <button key={c.id} onClick={() => setForm(f=>({...f, cat: c.id}))}
+                        style={{ background: form.cat===c.id ? c.color : C.bg, color: form.cat===c.id ? 'white' : C.text, borderRadius: 10, padding: '8px 10px', fontSize: 12, fontWeight: form.cat===c.id ? 700 : 400, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>{c.emoji}</span>{c.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={save} style={{ flex:1, background: C.primary, color: 'white', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 700 }}>保存</button>
+                  <button onClick={() => setShowForm(false)} style={{ flex:1, background: C.bg, color: C.textMuted, borderRadius: 10, padding: '11px', fontSize: 13 }}>キャンセル</button>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {viewItems.length > 0 && (() => {
+            const groups = viewCats.map(c => ({...c, items: viewItems.filter(i=>i.cat===c.id)})).filter(c=>c.items.length>0);
+            if (!groups.length) return null;
+            return (
+              <Card>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, marginBottom: 14 }}>カテゴリ別</div>
+                {groups.map(c => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                    <span style={{ fontSize: 16 }}>{c.emoji}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{c.name}</div>
+                      <div style={{ fontSize: 11, color: C.textMuted }}>{c.items.length}件</div>
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFeatureSettings: tnum }}>¥{fmt(c.items.reduce((s,i)=>s+i.amount,0))}</div>
+                  </div>
+                ))}
+              </Card>
+            );
+          })()}
+        </div>
+
+        {/* Right column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', background: 'white', borderRadius: 16, padding: 4, gap: 4, boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
+            {[{k:'assets',l:`プラスの財産　¥${fmt(totalAssets)}`},{k:'liabilities',l:`マイナスの財産　¥${fmt(totalLiab)}`}].map(t => (
+              <button key={t.k} onClick={() => setViewTab(t.k)}
+                style={{ flex:1, background: viewTab===t.k ? (t.k==='assets'?C.primary:C.warning) : 'transparent', color: viewTab===t.k ? 'white' : C.textMuted, borderRadius: 13, padding: '11px', fontSize: 13, fontWeight: viewTab===t.k ? 700 : 500 }}>{t.l}</button>
+            ))}
+          </div>
+
+          <Card>
+            {viewItems.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '48px 0', color: C.textFaint, fontSize: 13, lineHeight: 2 }}>
+                まだ登録されていません<br/>「財産を追加」から入力してください
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {viewItems.map(item => {
+                  const cat = viewCats.find(c=>c.id===item.cat) || viewCats[viewCats.length-1];
+                  return (
+                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: C.bg, borderRadius: 14 }}>
+                      <div style={{ width: 38, height: 38, background: cat.color, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>{cat.emoji}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{item.name}</div>
+                        <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{item.institution ? `${item.institution} · ` : ''}{cat.name}</div>
+                      </div>
+                      <div style={{ fontSize: 17, fontWeight: 700, color: C.text, fontFeatureSettings: tnum, flexShrink: 0 }}>¥{fmt(item.amount)}</div>
+                      <button onClick={() => remove(viewTab, item.id)} style={{ width: 30, height: 30, borderRadius: 8, background: '#FEE2E2', color: '#DC2626', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {viewItems.length > 0 && (
+              <div style={{ marginTop: 16, padding: '14px 16px', background: viewTab==='assets' ? C.primaryLight : '#FFF0F4', borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: viewTab==='assets' ? C.primary : C.warning }}>合計 {viewTab==='assets'?'①':'②'}</span>
+                <span style={{ fontSize: 18, fontWeight: 700, color: viewTab==='assets' ? C.primary : C.warning, fontFeatureSettings: tnum }}>¥{fmt(viewTab==='assets'?totalAssets:totalLiab)}</span>
+              </div>
+            )}
+          </Card>
+
+          <Card style={{ background: `linear-gradient(135deg, ${C.primaryLight} 0%, #EDE8F8 100%)` }}>
+            <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 600, marginBottom: 14 }}>純資産の計算</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: C.primary, fontWeight: 600, marginBottom: 3 }}>プラスの財産 ①</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: C.primary, fontFeatureSettings: tnum }}>¥{fmt(totalAssets)}</div>
+              </div>
+              <div style={{ fontSize: 22, color: C.textFaint }}>−</div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: C.warning, fontWeight: 600, marginBottom: 3 }}>マイナスの財産 ②</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: C.warning, fontFeatureSettings: tnum }}>¥{fmt(totalLiab)}</div>
+              </div>
+              <div style={{ fontSize: 22, color: C.textFaint }}>=</div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: nwPos ? C.primary : C.warning, fontWeight: 600, marginBottom: 3 }}>純資産</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: nwPos ? C.primary : C.warning, fontFeatureSettings: tnum }}>{nwPos?'':'−'}¥{fmt(Math.abs(netWorth))}</div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
 // ── FIXED EXPENSES (固定費) ─────────────────────────────────────────────────
 const FIXED_CATS = [
   { id: 'rent',    name: '住居',    emoji: '🏠', color: '#4A6898' },
@@ -1264,6 +1463,7 @@ function App() {
     case 'budget':   return <BudgetScreen   go={go} />;
     case 'tax':      return <TaxScreen      go={go} />;
     case 'report':   return <ReportScreen   go={go} />;
+    case 'networth': return <NetWorthScreen    go={go} />;
     case 'fixed':    return <FixedExpensesScreen go={go} />;
     case 'settings': return <SettingsScreen go={go} user={user} onLogout={onLogout} />;
     default:         return <HomeScreen     go={go} />;
