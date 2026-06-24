@@ -1405,7 +1405,8 @@ function ReportScreen({ go }) {
   ];
 
   const fixedItems = Store.get('fixedExpenses', []).filter(i => i.active);
-  const fixedTotal = fixedItems.reduce((s, i) => s + i.amount, 0);
+  const fixedMonthly = fixedItems.filter(i => i.cycle !== 'yearly').reduce((s, i) => s + i.amount, 0);
+  const fixedYearly  = fixedItems.filter(i => i.cycle === 'yearly').reduce((s, i) => s + i.amount, 0);
   const fixedCatMap = { rent:'🏠', utility:'💡', comms:'📱', sub:'📺', insure:'🛡️', other:'📋' };
 
   return (
@@ -1473,14 +1474,23 @@ function ReportScreen({ go }) {
       </div>
 
       <Card>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <SectionTitle style={{ marginBottom: 0 }}>契約中のサブスク・固定費</SectionTitle>
-          <span style={{ fontSize: 14, fontWeight: 700, color: C.info, fontFeatureSettings: tnum }}>月 ¥{fmt(fixedTotal)}</span>
+          <div style={{ display: 'flex', gap: 14 }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600 }}>毎月</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.info, fontFeatureSettings: tnum }}>¥{fmt(fixedMonthly)}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600 }}>年間一括</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.invest, fontFeatureSettings: tnum }}>¥{fmt(fixedYearly)}</div>
+            </div>
+          </div>
         </div>
         {fixedItems.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '24px 0', color: C.textFaint, fontSize: 13 }}>登録された固定費がありません</div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
             {fixedItems.map(item => (
               <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.bg, borderRadius: 12, padding: '12px 14px' }}>
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
@@ -1488,8 +1498,11 @@ function ReportScreen({ go }) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</div>
-                  <div style={{ fontSize: 11, color: C.textFaint, marginTop: 2 }}>{item.payment}</div>
+                  <div style={{ fontSize: 11, color: C.textFaint, marginTop: 2 }}>
+                    {item.payment} · {item.cycle === 'yearly' ? `年1回（${item.month}月）` : item.day}
+                  </div>
                 </div>
+                {item.cycle === 'yearly' && <span style={{ fontSize: 10, fontWeight: 700, color: C.invest, background: C.invest+'18', borderRadius: 5, padding: '2px 6px', flexShrink: 0 }}>年払</span>}
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFeatureSettings: tnum, flexShrink: 0 }}>¥{fmt(item.amount)}</div>
               </div>
             ))}
@@ -1708,39 +1721,56 @@ const FIXED_CATS = [
 ];
 
 function FixedExpensesScreen({ go }) {
+  const today = new Date();
+  const thisMonth = String(today.getMonth() + 1);
+  const thisYear  = TODAY.slice(0, 4);
+
   const [items, setItems] = useState(() => Store.get('fixedExpenses', []));
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', amount: '', cat: 'rent', payment: 'カード', day: '毎月1日' });
+  const [form, setForm] = useState({ name: '', amount: '', cat: 'rent', payment: 'カード', cycle: 'monthly', day: '毎月1日', month: thisMonth });
 
   const [regSet, setRegSet] = useState(() => new Set(
     Store.get('transactions',[]).filter(t=>t.source==='fixed'&&t.date&&t.date.startsWith(thisMonthStr())).map(t=>t.fixedId)
+  ));
+  const [yearlyRegSet, setYearlyRegSet] = useState(() => new Set(
+    Store.get('transactions',[]).filter(t=>t.source==='fixed'&&t.date&&t.date.startsWith(thisYear)).map(t=>t.fixedId)
   ));
 
   const save = () => {
     if (!form.name || !form.amount) return;
     const next = [...items, { id: Date.now(), ...form, amount: Number(form.amount), active: true }];
     setItems(next); Store.set('fixedExpenses', next);
-    setForm({ name: '', amount: '', cat: 'rent', payment: 'カード', day: '毎月1日' });
+    setForm({ name: '', amount: '', cat: 'rent', payment: 'カード', cycle: 'monthly', day: '毎月1日', month: thisMonth });
     setShowForm(false);
   };
   const toggle = id => { const n = items.map(i => i.id === id ? {...i, active: !i.active} : i); setItems(n); Store.set('fixedExpenses', n); };
   const remove = id => { const n = items.filter(i => i.id !== id); setItems(n); Store.set('fixedExpenses', n); };
 
+  const unregistered = items.filter(i => {
+    if (!i.active) return false;
+    if (i.cycle === 'yearly') return i.month === thisMonth && !yearlyRegSet.has(i.id);
+    return !regSet.has(i.id);
+  });
+
   const registerAll = () => {
-    const toReg = items.filter(i => i.active && !regSet.has(i.id));
-    if (!toReg.length) return;
+    if (!unregistered.length) return;
     const existing = Store.get('transactions', []);
-    const newTxns = toReg.map((item, idx) => ({
+    const newTxns = unregistered.map((item, idx) => ({
       id: Date.now() + idx, type: 'expense', amount: item.amount, category: 'その他',
       division: '生活費', payment: item.payment, memo: item.name,
       date: TODAY, source: 'fixed', fixedId: item.id,
     }));
     Store.set('transactions', [...existing, ...newTxns]);
-    setRegSet(new Set([...regSet, ...toReg.map(i => i.id)]));
+    setRegSet(new Set([...regSet, ...unregistered.filter(i=>i.cycle!=='yearly').map(i=>i.id)]));
+    setYearlyRegSet(new Set([...yearlyRegSet, ...unregistered.filter(i=>i.cycle==='yearly').map(i=>i.id)]));
   };
 
-  const activeTotal = items.filter(i => i.active).reduce((s,i) => s + i.amount, 0);
-  const unregistered = items.filter(i => i.active && !regSet.has(i.id));
+  const monthlyActive = items.filter(i => i.active && i.cycle !== 'yearly');
+  const yearlyActive  = items.filter(i => i.active && i.cycle === 'yearly');
+  const monthlyTotal  = monthlyActive.reduce((s,i) => s + i.amount, 0);
+  const yearlyTotal   = yearlyActive.reduce((s,i) => s + i.amount, 0);
+  const annualTotal   = monthlyTotal * 12 + yearlyTotal;
+
   const catGroups = FIXED_CATS.map(c => ({ ...c, items: items.filter(i => i.cat === c.id) })).filter(c => c.items.length > 0);
 
   const inputStyle = { background: C.bg, borderRadius: 10, padding: '11px 14px', fontSize: 14, color: C.text, border: `1.5px solid ${C.border}`, width: '100%', outline: 'none' };
@@ -1752,9 +1782,22 @@ function FixedExpensesScreen({ go }) {
         {/* Left: summary + form */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Card>
-            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6, fontWeight: 600 }}>毎月の固定費合計</div>
-            <div style={{ fontSize: 40, fontWeight: 700, color: C.text, letterSpacing: '-2px', fontFeatureSettings: tnum }}>¥{fmt(activeTotal)}</div>
-            <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{items.filter(i=>i.active).length}件が有効 / 全{items.length}件</div>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+              <div style={{ flex: 1, background: C.bg, borderRadius: 10, padding: '10px 12px' }}>
+                <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 3 }}>毎月の固定費</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: C.text, letterSpacing: '-1px', fontFeatureSettings: tnum }}>¥{fmt(monthlyTotal)}</div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{monthlyActive.length}件</div>
+              </div>
+              <div style={{ flex: 1, background: C.bg, borderRadius: 10, padding: '10px 12px' }}>
+                <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 3 }}>年間一括払い</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: C.invest, letterSpacing: '-1px', fontFeatureSettings: tnum }}>¥{fmt(yearlyTotal)}</div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{yearlyActive.length}件</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 14, borderBottom: `1px solid ${C.border}`, marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 600 }}>年間総額（試算）</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: C.text, fontFeatureSettings: tnum }}>¥{fmt(annualTotal)}</div>
+            </div>
             <div style={{ height: 1, background: C.border, margin: '16px 0' }} />
             {items.filter(i=>i.active).length > 0 && (
               <button onClick={registerAll} className="lift" disabled={unregistered.length===0} style={{ width: '100%', background: unregistered.length>0 ? '#4A6898' : C.primaryLight, color: unregistered.length>0 ? 'white' : C.primary, borderRadius: 12, padding: '12px', fontSize: 13, fontWeight: 700, marginBottom: 8, boxShadow: unregistered.length>0 ? '0 6px 18px rgba(74,104,152,0.28)' : 'none', cursor: unregistered.length>0 ? 'pointer' : 'default' }}>
@@ -1788,12 +1831,26 @@ function FixedExpensesScreen({ go }) {
                     ))}
                   </div>
                 </div>
+                <div>
+                  <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6, fontWeight: 600 }}>支払いサイクル</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[['monthly','毎月'],['yearly','年1回']].map(([v,l]) => (
+                      <button key={v} onClick={() => setForm(f=>({...f, cycle:v}))} style={{ flex:1, background: form.cycle===v ? C.primary : C.bg, color: form.cycle===v ? 'white' : C.text, borderRadius:10, padding:'9px', fontSize:13, fontWeight:700, border:'none', cursor:'pointer' }}>{l}</button>
+                    ))}
+                  </div>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div>
-                    <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6, fontWeight: 600 }}>引き落とし日</div>
-                    <select value={form.day} onChange={e => setForm(f=>({...f, day: e.target.value}))} style={{ ...inputStyle, fontSize: 13 }}>
-                      {['毎月1日','毎月5日','毎月10日','毎月15日','毎月20日','毎月25日','毎月末日'].map(d => <option key={d}>{d}</option>)}
-                    </select>
+                    <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6, fontWeight: 600 }}>{form.cycle === 'yearly' ? '支払い月' : '引き落とし日'}</div>
+                    {form.cycle === 'yearly' ? (
+                      <select value={form.month} onChange={e => setForm(f=>({...f, month:e.target.value}))} style={{ ...inputStyle, fontSize: 13 }}>
+                        {Array.from({length:12},(_,i)=>`${i+1}`).map(m => <option key={m} value={m}>{m}月</option>)}
+                      </select>
+                    ) : (
+                      <select value={form.day} onChange={e => setForm(f=>({...f, day: e.target.value}))} style={{ ...inputStyle, fontSize: 13 }}>
+                        {['毎月1日','毎月5日','毎月10日','毎月15日','毎月20日','毎月25日','毎月末日'].map(d => <option key={d}>{d}</option>)}
+                      </select>
+                    )}
                   </div>
                   <div>
                     <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6, fontWeight: 600 }}>支払い</div>
@@ -1847,8 +1904,11 @@ function FixedExpensesScreen({ go }) {
                     <div style={{ width: 38, height: 38, background: item.active ? cat.color : '#CCC', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>{cat.emoji}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{item.name}</div>
-                      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{cat.name} · {item.day} · {item.payment}</div>
+                      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
+                        {cat.name} · {item.cycle === 'yearly' ? `年1回（${item.month}月）` : item.day} · {item.payment}
+                      </div>
                     </div>
+                    {item.cycle === 'yearly' && <span style={{ fontSize: 10, fontWeight: 700, color: C.invest, background: C.invest+'18', borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>年払</span>}
                     {item.active && registered && <span style={{ fontSize: 10, fontWeight: 700, color: C.primary, background: C.primaryLight, borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>今月登録済</span>}
                     <div style={{ fontSize: 16, fontWeight: 700, color: item.active ? C.text : C.textMuted, fontFeatureSettings: tnum, flexShrink: 0 }}>¥{fmt(item.amount)}</div>
                     <button onClick={() => toggle(item.id)} style={{ width: 42, height: 24, borderRadius: 12, background: item.active ? C.primary : C.border, position: 'relative', flexShrink: 0, border: 'none', cursor: 'pointer', transition: 'background .2s' }}>
@@ -1862,8 +1922,8 @@ function FixedExpensesScreen({ go }) {
           )}
           {items.length > 0 && (
             <div style={{ marginTop: 16, padding: '14px 16px', background: C.primaryLight, borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: C.primary }}>有効な固定費の合計</span>
-              <span style={{ fontSize: 18, fontWeight: 700, color: C.primary, fontFeatureSettings: tnum }}>¥{fmt(activeTotal)}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: C.primary }}>年間総額（試算）</span>
+              <span style={{ fontSize: 18, fontWeight: 700, color: C.primary, fontFeatureSettings: tnum }}>¥{fmt(annualTotal)}</span>
             </div>
           )}
         </Card>
