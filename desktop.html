@@ -370,7 +370,7 @@ function HomeScreen({ go }) {
   const savingsGoal = s.savingsGoal || 0;
   const today = new Date();
   const daysLeft = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() - today.getDate();
-  const usable = Math.max(0, income - taxAmt - savingsGoal);
+  const usable = Math.max(0, income - taxAmt - savingsGoal - Store.get('fixedExpenses',[]).filter(i=>i.active).reduce((s,i)=>s+i.amount,0));
   const dailyBudget = daysLeft > 0 ? Math.round(usable / daysLeft) : 0;
   const bizLabel = userType === 'employee' ? '特別支出' : '事業費';
   const mTxns = getThisMonthTxns();
@@ -1182,6 +1182,10 @@ function FixedExpensesScreen({ go }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', amount: '', cat: 'rent', payment: 'カード', day: '毎月1日' });
 
+  const [regSet, setRegSet] = useState(() => new Set(
+    Store.get('transactions',[]).filter(t=>t.source==='fixed'&&t.date&&t.date.startsWith(thisMonthStr())).map(t=>t.fixedId)
+  ));
+
   const save = () => {
     if (!form.name || !form.amount) return;
     const next = [...items, { id: Date.now(), ...form, amount: Number(form.amount), active: true }];
@@ -1192,7 +1196,21 @@ function FixedExpensesScreen({ go }) {
   const toggle = id => { const n = items.map(i => i.id === id ? {...i, active: !i.active} : i); setItems(n); Store.set('fixedExpenses', n); };
   const remove = id => { const n = items.filter(i => i.id !== id); setItems(n); Store.set('fixedExpenses', n); };
 
+  const registerAll = () => {
+    const toReg = items.filter(i => i.active && !regSet.has(i.id));
+    if (!toReg.length) return;
+    const existing = Store.get('transactions', []);
+    const newTxns = toReg.map((item, idx) => ({
+      id: Date.now() + idx, type: 'expense', amount: item.amount, category: 'その他',
+      division: '生活費', payment: item.payment, memo: item.name,
+      date: TODAY, source: 'fixed', fixedId: item.id,
+    }));
+    Store.set('transactions', [...existing, ...newTxns]);
+    setRegSet(new Set([...regSet, ...toReg.map(i => i.id)]));
+  };
+
   const activeTotal = items.filter(i => i.active).reduce((s,i) => s + i.amount, 0);
+  const unregistered = items.filter(i => i.active && !regSet.has(i.id));
   const catGroups = FIXED_CATS.map(c => ({ ...c, items: items.filter(i => i.cat === c.id) })).filter(c => c.items.length > 0);
 
   const inputStyle = { background: C.bg, borderRadius: 10, padding: '11px 14px', fontSize: 14, color: C.text, border: `1.5px solid ${C.border}`, width: '100%', outline: 'none' };
@@ -1208,6 +1226,11 @@ function FixedExpensesScreen({ go }) {
             <div style={{ fontSize: 40, fontWeight: 700, color: C.text, letterSpacing: '-2px', fontFeatureSettings: tnum }}>¥{fmt(activeTotal)}</div>
             <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{items.filter(i=>i.active).length}件が有効 / 全{items.length}件</div>
             <div style={{ height: 1, background: C.border, margin: '16px 0' }} />
+            {items.filter(i=>i.active).length > 0 && (
+              <button onClick={registerAll} className="lift" disabled={unregistered.length===0} style={{ width: '100%', background: unregistered.length>0 ? '#4A6898' : C.primaryLight, color: unregistered.length>0 ? 'white' : C.primary, borderRadius: 12, padding: '12px', fontSize: 13, fontWeight: 700, marginBottom: 8, boxShadow: unregistered.length>0 ? '0 6px 18px rgba(74,104,152,0.28)' : 'none', cursor: unregistered.length>0 ? 'pointer' : 'default' }}>
+                {unregistered.length>0 ? `今月の支出に一括登録（${unregistered.length}件）` : '✓ 今月はすべて登録済み'}
+              </button>
+            )}
             <button onClick={() => setShowForm(v => !v)} className="lift" style={{ width: '100%', background: C.primary, color: 'white', borderRadius: 12, padding: '12px', fontSize: 14, fontWeight: 700, boxShadow: '0 6px 18px rgba(9,125,96,0.28)' }}>
               {showForm ? '× 閉じる' : '+ 固定費を追加'}
             </button>
@@ -1288,6 +1311,7 @@ function FixedExpensesScreen({ go }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map(item => {
                 const cat = FIXED_CATS.find(c => c.id === item.cat) || FIXED_CATS[5];
+                const registered = regSet.has(item.id);
                 return (
                   <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: item.active ? C.bg : '#F5F5F5', borderRadius: 14, opacity: item.active ? 1 : 0.6 }}>
                     <div style={{ width: 38, height: 38, background: item.active ? cat.color : '#CCC', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>{cat.emoji}</div>
@@ -1295,8 +1319,8 @@ function FixedExpensesScreen({ go }) {
                       <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{item.name}</div>
                       <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{cat.name} · {item.day} · {item.payment}</div>
                     </div>
+                    {item.active && registered && <span style={{ fontSize: 10, fontWeight: 700, color: C.primary, background: C.primaryLight, borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>今月登録済</span>}
                     <div style={{ fontSize: 16, fontWeight: 700, color: item.active ? C.text : C.textMuted, fontFeatureSettings: tnum, flexShrink: 0 }}>¥{fmt(item.amount)}</div>
-                    {/* Toggle */}
                     <button onClick={() => toggle(item.id)} style={{ width: 42, height: 24, borderRadius: 12, background: item.active ? C.primary : C.border, position: 'relative', flexShrink: 0, border: 'none', cursor: 'pointer', transition: 'background .2s' }}>
                       <div style={{ width: 18, height: 18, background: 'white', borderRadius: '50%', position: 'absolute', top: 3, left: item.active ? 21 : 3, transition: 'left .2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
                     </button>
