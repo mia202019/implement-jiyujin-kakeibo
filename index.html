@@ -2769,6 +2769,7 @@ function SettingsScreen({ go, user, onLogout }) {
     { label: 'カード・支払い管理',  detail: cardCount > 0 ? `${cardCount}枚登録済み` : '未登録', emoji: '💳', action: () => go('cards') },
     { label: '財産目録',            detail: nwData.assets.length > 0 ? `純資産 ¥${fmt(nwTotal)}` : '未設定', emoji: '📒', action: () => go('networth') },
     { label: '通知設定',            detail: notify ? 'オン' : 'オフ', emoji: '🔔', action: toggleNotify },
+    { label: 'freee出力',           detail: '取引をCSVで書き出し',    emoji: '📤', action: () => go('freee') },
   ];
 
   return (
@@ -2851,6 +2852,161 @@ function SettingsScreen({ go, user, onLogout }) {
         <div style={{ marginTop: 24, textAlign: 'center' }}>
           <span style={{ fontSize: 11, color: C.textFaint }}>自由人家計簿 v1.0.0　·　プライバシーポリシー</span>
         </div>
+      </div>
+
+      <BottomNav active="settings" go={go} />
+    </Screen>
+  );
+}
+
+// ── freee CSV Export ───────────────────────────────────────────────────────
+const FREEE_ACCOUNT_MAP = {
+  '食費': '食費', '交通費': '旅費交通費', '日用品': '消耗品費',
+  '美容・衣服': '雑費', '医療・健康': '医療費', '趣味・娯楽': '雑費',
+  '材料費': '仕入高', '機材・ソフト': '消耗品費', '出店料': '地代家賃',
+  '交際費': '交際費', '教育・学習': '研修費',
+  '税金': '租税公課', '投資': '投資有価証券',
+};
+
+function FreeeExportScreen({ go }) {
+  const allTxns = Store.get('transactions', [])
+    .filter(t => t.date)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const getFiltered = (p) => {
+    if (p === 'month') return allTxns.filter(t => t.date.startsWith(TODAY.slice(0, 7)));
+    if (p === 'last') {
+      const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
+      return allTxns.filter(t => t.date.startsWith(d.toISOString().slice(0, 7)));
+    }
+    if (p === 'year') return allTxns.filter(t => t.date.startsWith(TODAY.slice(0, 4)));
+    return allTxns;
+  };
+
+  const [period, setPeriod]   = useState('month');
+  const [selected, setSelected] = useState(() => new Set(getFiltered('month').map(t => t.id)));
+  const [toast, setToast]     = useState('');
+
+  const filtered    = getFiltered(period);
+  const allSelected = filtered.length > 0 && filtered.every(t => selected.has(t.id));
+  const showToast   = msg => { setToast(msg); setTimeout(() => setToast(''), 2500); };
+
+  const changePeriod = v => {
+    setPeriod(v);
+    setSelected(new Set(getFiltered(v).map(t => t.id)));
+  };
+
+  const toggleAll = () => {
+    if (allSelected) setSelected(new Set());
+    else setSelected(new Set(filtered.map(t => t.id)));
+  };
+
+  const toggle = id => {
+    const next = new Set(selected);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setSelected(next);
+  };
+
+  const toAccount = t => {
+    if (t.type === 'income') return t.division === '事業収入' ? '売上高' : '給与収入';
+    return FREEE_ACCOUNT_MAP[t.category] || '雑費';
+  };
+
+  const exportCSV = () => {
+    const rows = allTxns
+      .filter(t => selected.has(t.id))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (!rows.length) { showToast('出力する取引を選択してください'); return; }
+
+    const header = ['取引日', '収支区分', '勘定科目', '税区分', '金額', '摘要', 'メモ'];
+    const lines = rows.map(t => {
+      const type    = t.type === 'income' ? '収入' : '支出';
+      const account = toAccount(t);
+      const taxDiv  = (t.division === '事業費' || t.division === '事業収入') ? '課税仕入10%' : '不課税';
+      const desc    = (t.memo || t.category || t.source || '').replace(/"/g, '""');
+      const memo    = [t.payment, t.division].filter(Boolean).join(' / ').replace(/"/g, '""');
+      return [t.date, type, account, taxDiv, t.amount, `"${desc}"`, `"${memo}"`].join(',');
+    });
+
+    const csv  = '﻿' + [header.join(','), ...lines].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = `freee-${TODAY}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    showToast(`${rows.length}件をCSVで出力しました`);
+  };
+
+  const PERIODS = [['month','今月'], ['last','先月'], ['year','今年'], ['all','全期間']];
+
+  return (
+    <Screen>
+      {toast && (
+        <div style={{ position:'fixed', top:64, left:'50%', transform:'translateX(-50%)', background:'#1a1a2e', color:'white', borderRadius:12, padding:'10px 20px', fontSize:13, fontWeight:600, zIndex:999, whiteSpace:'nowrap', boxShadow:'0 4px 20px rgba(0,0,0,0.25)', pointerEvents:'none' }}>
+          {toast}
+        </div>
+      )}
+
+      <div style={{ flex:1, overflowY:'auto', padding:'56px 20px 20px' }}>
+        {/* Header */}
+        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20 }}>
+          <button onClick={() => go('settings')} style={{ width:36, height:36, borderRadius:10, background:'white', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 1px 6px rgba(0,0,0,0.08)', flexShrink:0, border:'none', cursor:'pointer' }}>
+            <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7l6 6" stroke={C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+          <div>
+            <div style={{ fontSize:20, fontWeight:700, color:C.text }}>freee出力</div>
+            <div style={{ fontSize:12, color:C.textMuted }}>取引データをfreee用CSVで書き出し</div>
+          </div>
+        </div>
+
+        {/* Period */}
+        <Card style={{ marginBottom:14 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:C.textMuted, letterSpacing:'0.06em', marginBottom:10 }}>期間</div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+            {PERIODS.map(([v,l]) => (
+              <button key={v} onClick={() => changePeriod(v)} style={{ background:period===v ? C.primary : C.bg, color:period===v ? 'white' : C.text, borderRadius:10, padding:'10px', fontSize:13, fontWeight:period===v ? 700 : 500, border:'none', cursor:'pointer' }}>{l}</button>
+            ))}
+          </div>
+        </Card>
+
+        {/* Select all row */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10, padding:'0 2px' }}>
+          <button type="button" onClick={toggleAll} style={{ display:'flex', alignItems:'center', gap:8, background:'none', border:'none', cursor:'pointer', padding:0 }}>
+            <div style={{ width:22, height:22, borderRadius:6, border:`2px solid ${allSelected ? C.primary : C.border}`, background:allSelected ? C.primary : 'white', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              {allSelected && <svg width="12" height="10" viewBox="0 0 12 10" fill="none"><path d="M1 5l3.5 3.5L11 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            </div>
+            <span style={{ fontSize:13, fontWeight:600, color:C.text }}>すべて選択</span>
+          </button>
+          <span style={{ fontSize:12, color:C.textMuted }}>{selected.size}件選択 / {filtered.length}件</span>
+        </div>
+
+        {/* List */}
+        {filtered.length === 0 ? (
+          <div style={{ textAlign:'center', padding:'40px 0', color:C.textFaint, fontSize:13 }}>この期間に取引がありません</div>
+        ) : filtered.map(t => {
+          const checked = selected.has(t.id);
+          return (
+            <button key={t.id} type="button" onClick={() => toggle(t.id)}
+              style={{ width:'100%', display:'flex', alignItems:'center', gap:12, background:checked ? C.primaryLight : 'white', borderRadius:12, padding:'11px 14px', marginBottom:6, border:`1.5px solid ${checked ? C.primary : 'transparent'}`, cursor:'pointer', textAlign:'left' }}>
+              <div style={{ width:20, height:20, borderRadius:5, border:`2px solid ${checked ? C.primary : C.border}`, background:checked ? C.primary : 'white', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                {checked && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:12, fontWeight:600, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.memo || t.category || t.source || '—'}</div>
+                <div style={{ fontSize:11, color:C.textMuted, marginTop:2 }}>{t.date} · {t.category || t.incomeType || ''}</div>
+              </div>
+              <div style={{ fontSize:13, fontWeight:700, color:t.type==='income'?C.primary:C.text, fontFeatureSettings:"'tnum'", flexShrink:0 }}>{t.type==='income'?'+':'-'}¥{fmt(t.amount)}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Export button */}
+      <div style={{ padding:'12px 20px 16px', flexShrink:0, background:'white', borderTop:`1px solid ${C.bgCard}` }}>
+        <button type="button" onClick={exportCSV}
+          style={{ width:'100%', background:selected.size>0 ? '#4A6898' : C.border, color:'white', borderRadius:16, padding:'16px', fontSize:15, fontWeight:700, border:'none', cursor:selected.size>0 ? 'pointer' : 'default', boxShadow:selected.size>0 ? '0 6px 18px rgba(74,104,152,0.3)' : 'none' }}>
+          {selected.size > 0 ? `${selected.size}件をfreee用CSVで出力` : '取引を選択してください'}
+        </button>
       </div>
 
       <BottomNav active="settings" go={go} />
@@ -2954,6 +3110,7 @@ function App() {
       case 'networth':      return <NetWorthScreen      go={nav} />;
       case 'fixed':         return <FixedExpensesScreen go={nav} />;
       case 'cards':         return <CardsScreen         go={nav} />;
+      case 'freee':         return <FreeeExportScreen   go={nav} />;
       case 'settings':      return <SettingsScreen  go={nav} user={user} onLogout={onLogout} />;
       default:              return <HomeScreen      go={nav} />;
     }
