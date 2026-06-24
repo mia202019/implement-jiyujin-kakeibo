@@ -215,6 +215,9 @@ const NAV = [
 ];
 
 function Sidebar({ active, go }) {
+  const userType = Store.get('settings', {}).userType || 'freelance';
+  const isBiz = userType !== 'employee';
+  const visibleNav = NAV.filter(item => isBiz || (item.key !== 'business' && item.key !== 'tax'));
   return (
     <aside style={{ width: 248, background: 'white', borderRight: `1px solid ${C.bgCard}`, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, bottom: 0, left: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '24px 22px 22px' }}>
@@ -226,7 +229,7 @@ function Sidebar({ active, go }) {
       </div>
 
       <nav style={{ flex: 1, padding: '6px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {NAV.map(({ key, label, icon }) => {
+        {visibleNav.map(({ key, label, icon }) => {
           const a = active === key;
           return (
             <button key={key} className={`navbtn${a ? ' active' : ''}`} onClick={() => go(key)} style={{
@@ -1895,16 +1898,16 @@ function SettingsScreen({ go, user, onLogout }) {
   const nwTotal = nwData.assets.reduce((s,i)=>s+i.amount,0) - nwData.liabilities.reduce((s,i)=>s+i.amount,0);
   const [taxRate, setTaxRate] = useState(() => Store.get('settings', {}).taxRate || 20);
   const [notify, setNotify] = useState(() => Store.get('settings', {}).notify !== false);
-  const [autoBackup, setAutoBackup] = useState(() => Store.get('settings', {}).autoBackup || false);
-  const [autoBackupInterval, setAutoBackupInterval] = useState(() => Store.get('settings', {}).autoBackupInterval || 'daily');
+  const [userType, setUserType] = useState(() => Store.get('settings', {}).userType || 'freelance');
   const [modal, setModal] = useState(null);
   const [taxInput, setTaxInput] = useState('');
   const [toast, setToast] = useState('');
-  const lastBackupTs = parseInt(localStorage.getItem('lastAutoBackup') || '0');
-  const lastBackupLabel = lastBackupTs ? (() => {
-    const diff = Math.floor((Date.now() - lastBackupTs) / 86400000);
-    return diff === 0 ? '今日' : `${diff}日前`;
-  })() : 'なし';
+  const USER_TYPES = [
+    { id: 'creator',  label: 'クリエイター', emoji: '🎨' },
+    { id: 'freelance',label: 'フリーランス',  emoji: '💼' },
+    { id: 'hybrid',   label: '会社員＋副業',  emoji: '⚡' },
+    { id: 'employee', label: '会社員',        emoji: '🏢' },
+  ];
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
 
@@ -1924,17 +1927,10 @@ function SettingsScreen({ go, user, onLogout }) {
     showToast(next ? '通知をオンにしました' : '通知をオフにしました');
   };
 
-  const toggleAutoBackup = () => {
-    const next = !autoBackup;
-    setAutoBackup(next);
-    Store.set('settings', { ...Store.get('settings', {}), autoBackup: next, autoBackupInterval });
-    if (next) { showToast('自動バックアップをオンにしました'); setTimeout(autoBackupCheck, 300); }
-    else showToast('自動バックアップをオフにしました');
-  };
-
-  const changeInterval = (val) => {
-    setAutoBackupInterval(val);
-    Store.set('settings', { ...Store.get('settings', {}), autoBackupInterval: val });
+  const changeUserType = (type) => {
+    setUserType(type);
+    Store.set('settings', { ...Store.get('settings', {}), userType: type });
+    showToast('ユーザータイプを変更しました');
   };
 
   const exportData = () => {
@@ -2036,26 +2032,18 @@ function SettingsScreen({ go, user, onLogout }) {
       </Card>
 
       <Card style={{ marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: autoBackup ? 16 : 0 }}>
-          <span style={{ fontSize: 20, width: 30, textAlign: 'center' }}>🔄</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>自動バックアップ</div>
-            <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>最終保存: {lastBackupLabel}</div>
-          </div>
-          <button onClick={toggleAutoBackup} style={{ width: 54, height: 30, borderRadius: 999, background: autoBackup ? C.primary : C.border, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
-            <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'white', position: 'absolute', top: 3, left: autoBackup ? 27 : 3, transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
-          </button>
-        </div>
-        {autoBackup && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', paddingLeft: 46 }}>
-            {['daily','weekly'].map(v => (
-              <button key={v} onClick={() => changeInterval(v)} style={{ background: autoBackupInterval === v ? C.primary : C.bg, color: autoBackupInterval === v ? 'white' : C.textMed, borderRadius: 999, padding: '8px 18px', fontSize: 13, fontWeight: autoBackupInterval === v ? 700 : 500, border: 'none', cursor: 'pointer' }}>
-                {v === 'daily' ? '毎日' : '毎週'}
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, letterSpacing: '0.05em', marginBottom: 14 }}>利用スタイル</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          {USER_TYPES.map(t => {
+            const active = userType === t.id;
+            return (
+              <button key={t.id} onClick={() => changeUserType(t.id)} className="lift" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 14, background: active ? C.primaryLight : C.bg, border: `${active ? 2 : 1.5}px solid ${active ? C.primary : C.border}`, cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ fontSize: 22 }}>{t.emoji}</span>
+                <span style={{ fontSize: 13, fontWeight: active ? 700 : 500, color: active ? C.primary : C.textMed }}>{t.label}</span>
               </button>
-            ))}
-            <span style={{ fontSize: 12, color: C.textMuted }}>— アプリ起動時に自動保存</span>
-          </div>
-        )}
+            );
+          })}
+        </div>
       </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
