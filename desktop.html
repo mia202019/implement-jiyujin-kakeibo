@@ -2190,6 +2190,8 @@ function FixedExpensesScreen({ go }) {
   const [showSubDetect, setShowSubDetect] = useState(false);
   const [dismissedSubKeys, setDismissedSubKeys] = useState(() => new Set(Store.get('dismissedSubKeys', [])));
   const [txnVersion, setTxnVersion] = useState(0);
+  const [pendingConfirm, setPendingConfirm] = useState(null);
+  const [addedName, setAddedName] = useState(null);
 
   const allTxns = Store.get('transactions', []);
   const subGroups = {};
@@ -2223,7 +2225,10 @@ function FixedExpensesScreen({ go }) {
     const next = new Set([...dismissedSubKeys, group.key]);
     setDismissedSubKeys(next);
     Store.set('dismissedSubKeys', [...next]);
+    setAddedName(group.memo);
+    setPendingConfirm(null);
     setTxnVersion(v => v + 1);
+    setTimeout(() => setAddedName(null), 3500);
   };
 
   const dismissSub = (key) => {
@@ -2285,6 +2290,15 @@ function FixedExpensesScreen({ go }) {
   return (
     <Shell active="settings" go={go} title="固定費の管理" subtitle="毎月かかる固定の支出を登録" maxWidth={1100}>
 
+      {/* 分類完了トースト */}
+      {addedName && (
+        <div style={{ position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)', background: '#065F46', color: 'white', borderRadius: 14, padding: '13px 22px', fontSize: 13, fontWeight: 600, zIndex: 9999, boxShadow: '0 4px 24px rgba(0,0,0,0.22)', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span>✓</span>
+          <span>「{addedName}」を固定費リストに登録しました</span>
+          <span style={{ fontSize: 11, opacity: 0.75 }}>→ 右パネルの固定費一覧で確認</span>
+        </div>
+      )}
+
       {/* サブスク自動検出バナー */}
       {detectedSubs.length > 0 && (
         <div style={{ background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 14, padding: 16, marginBottom: 20 }}>
@@ -2300,17 +2314,31 @@ function FixedExpensesScreen({ go }) {
           </div>
           {showSubDetect && (
             <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>
-              {detectedSubs.map(g => (
-                <div key={g.key} style={{ background: 'white', borderRadius: 10, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 22, flexShrink: 0 }}>📺</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.memo}</div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>¥{fmt(g.amount)} · {g.months.size}ヶ月分検出</div>
+              {detectedSubs.map(g => {
+                const confirming = pendingConfirm === g.key;
+                return (
+                  <div key={g.key} style={{ background: confirming ? '#EFF6FF' : 'white', border: confirming ? '1.5px solid #93C5FD' : '1.5px solid transparent', borderRadius: 10, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, transition: 'all 0.15s' }}>
+                    <span style={{ fontSize: 22, flexShrink: 0 }}>📺</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.memo}</div>
+                      <div style={{ fontSize: 12, color: confirming ? '#1D4ED8' : '#64748b' }}>
+                        {confirming ? '固定費リストに追加します' : `¥${fmt(g.amount)} · ${g.months.size}ヶ月分検出`}
+                      </div>
+                    </div>
+                    {confirming ? (
+                      <>
+                        <button onClick={() => setPendingConfirm(null)} style={{ fontSize: 11, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', flexShrink: 0 }}>キャンセル</button>
+                        <button onClick={() => classifyAsSub(g)} style={{ fontSize: 12, fontWeight: 700, color: 'white', background: '#059669', border: 'none', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>✓ 追加する</button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => dismissSub(g.key)} style={{ fontSize: 11, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', flexShrink: 0 }}>無視</button>
+                        <button onClick={() => setPendingConfirm(g.key)} style={{ fontSize: 12, fontWeight: 700, color: 'white', background: '#1D4ED8', border: 'none', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>サブスクに分類</button>
+                      </>
+                    )}
                   </div>
-                  <button onClick={() => dismissSub(g.key)} style={{ fontSize: 11, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', flexShrink: 0 }}>無視</button>
-                  <button onClick={() => classifyAsSub(g)} style={{ fontSize: 12, fontWeight: 700, color: 'white', background: '#1D4ED8', border: 'none', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>サブスクに分類</button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
