@@ -2237,6 +2237,28 @@ function FixedExpensesScreen({ go }) {
     Store.set('dismissedSubKeys', [...next]);
   };
 
+  // 既存のサブスクカテゴリ取引を固定費一覧に同期（分類済みで未登録のものを追加）
+  useEffect(() => {
+    const txns = Store.get('transactions', []);
+    const subTxns = txns.filter(t => t.type === 'expense' && t.category === 'サブスク');
+    const groups = {};
+    subTxns.forEach(t => {
+      const memo = (t.memo || '').trim();
+      if (!memo) return;
+      const key = `${t.amount}__${memo}`;
+      if (!groups[key]) groups[key] = { memo, amount: t.amount };
+    });
+    const fixed = Store.get('fixedExpenses', []);
+    const toAdd = Object.values(groups).filter(g => !fixed.some(i => i.name === g.memo && i.amount === g.amount));
+    if (toAdd.length === 0) return;
+    const nextFixed = [...fixed, ...toAdd.map((g, i) => ({
+      id: Date.now() + i, name: g.memo, amount: g.amount, cat: 'sub',
+      payment: 'カード', cycle: 'monthly', day: '毎月1日', month: '1', division: '生活費', active: true,
+    }))];
+    setItems(nextFixed);
+    Store.set('fixedExpenses', nextFixed);
+  }, []);
+
   const save = () => {
     if (!form.name || !form.amount) return;
     const next = [...items, { id: Date.now(), ...form, amount: Number(form.amount), active: true }];
