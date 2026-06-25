@@ -647,13 +647,20 @@ function TxnEditModal({ txn, onSave, onDelete, onClose }) {
   const [amount, setAmount] = useState(String(txn.amount));
   const [date, setDate]     = useState(txn.date || TODAY);
   const [memo, setMemo]     = useState(txn.memo || '');
+  const [cat, setCat]       = useState(txn.category || '');
   const [div, setDiv]       = useState(txn.division || '生活費');
   const [pay, setPay]       = useState(txn.payment || getCards()[0]?.name || '現金');
+
+  const pickCat = (name) => {
+    setCat(name);
+    const info = EXPENSE_CATS.find(c => c.name === name);
+    if (info) setDiv(info.group === 'biz' ? '事業費' : '生活費');
+  };
 
   const save = () => {
     const n = parseInt(amount);
     if (!n || n <= 0) return;
-    onSave({ ...txn, amount: n, date, memo, division: txn.type==='expense' ? div : txn.division, payment: pay });
+    onSave({ ...txn, amount: n, date, memo, category: txn.type==='expense' ? cat : txn.category, division: txn.type==='expense' ? div : txn.division, payment: pay });
   };
 
   return (
@@ -678,6 +685,18 @@ function TxnEditModal({ txn, onSave, onDelete, onClose }) {
             style={{ width:'100%', fontSize:14, fontWeight:600, padding:'12px 16px', border:`1.5px solid ${C.border}`, borderRadius:12, outline:'none', background:C.bg, color:C.text }} />
         </div>
 
+        {txn.type === 'expense' && (
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:C.textMuted, marginBottom:6 }}>カテゴリ</div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:6 }}>
+              {EXPENSE_CATS.map(c => (
+                <button key={c.name} onClick={() => pickCat(c.name)} style={{ background:cat===c.name?C.primary:C.bg, color:cat===c.name?'white':C.text, borderRadius:8, padding:'8px 4px', fontSize:10, fontWeight:cat===c.name?700:400, display:'flex', flexDirection:'column', alignItems:'center', gap:2, border:'none', cursor:'pointer' }}>
+                  <span style={{ fontSize:15 }}>{c.emoji}</span>{c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {txn.type === 'expense' && (
           <div style={{ marginBottom:14 }}>
             <div style={{ fontSize:11, fontWeight:600, color:C.textMuted, marginBottom:6 }}>区分</div>
