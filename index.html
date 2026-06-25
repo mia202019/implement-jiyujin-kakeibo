@@ -2932,9 +2932,12 @@ function detectFormat(rows) {
     if (h.includes('取引日') && (h.includes('取引先') || h.includes('支払'))) return { fmt:'paypay', headerIdx:i };
     if (h.includes('支払金額') && h.includes('入金額')) return { fmt:'bank-stmt', headerIdx:i };
   }
-  if (rows.length > 0 && /^\d{4}\/\d{1,2}\/\d{1,2}$/.test((rows[0][0] || '').trim())) {
-    return { fmt:'vpass-noheader', headerIdx:-1 };
-  }
+  const isDate = s => /^\d{4}\/\d{1,2}\/\d{1,2}$/.test((s || '').trim());
+  const isInt  = s => /^\d+$/.test((s || '').trim());
+  // 7月形式: 1行目が日付データ
+  if (rows.length > 0 && isDate(rows[0][0])) return { fmt:'vpass-noheader', headerIdx:-1 };
+  // 6月形式: カード情報行+データ行が混在、日付列0・金額列2
+  if (rows.some(r => isDate(r[0]) && isInt(r[2]))) return { fmt:'vpass-monthly', headerIdx:-1 };
   return { fmt:'generic', headerIdx:0 };
 }
 
@@ -2958,8 +2961,16 @@ function rowToTxn(row, headers, fmt, autoClassOn, idx) {
     if (pay > 0) { amount = pay; }
     else if (dep > 0) { amount = dep; return { tempId:idx, date, memo:desc, category: autoClassOn ? guessCategory(desc) : 'その他', amount, type:'income', division:'事業収入', payment:'振込' }; }
     else return null;
+  } else if (fmt === 'vpass-monthly') {
+    // 6月形式: date,store,totalAmt,payType,count,todayAmt,foreignInfo
+    if (!/^\d{4}\/\d{1,2}\/\d{1,2}$/.test((row[0] || '').trim())) return null;
+    date   = normalizeDate(row[0]);
+    desc   = row[1] || '';
+    const monthly = normalizeAmount(row[5]);
+    const total   = normalizeAmount(row[2]);
+    amount = monthly > 0 ? monthly : total;
   } else if (fmt === 'vpass-noheader') {
-    // ヘッダーなしVpass: 日付,店名,国,支払区分,...,金額,...
+    // 7月形式: date,store,国,支払区分,...,金額,...
     date   = normalizeDate(row[0]);
     desc   = row[1] || '';
     const a = rawAmt(row[6]);
@@ -2975,7 +2986,8 @@ function rowToTxn(row, headers, fmt, autoClassOn, idx) {
     const typeVal = row[typeCol] || '';
     if (!typeVal.includes('支払') && !typeVal.includes('決済') && typeVal !== '') return null;
     date   = normalizeDate((row[hi('取引日')] || '').slice(0,10));
-    desc   = row[hi('取引先名')] || row[hi('備考')] || '';
+    const descCol = ['取引先名','商品名','内容','摘要','備考','コメント'].map(k=>hi(k)).find(i=>i>=0) ?? -1;
+    desc = descCol >= 0 ? row[descCol] : row[1] || '';
     const payCol = hi('支払金額') >= 0 ? hi('支払金額') : hi('取引金額');
     amount = normalizeAmount(row[payCol]);
   } else {
