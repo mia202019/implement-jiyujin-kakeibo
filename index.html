@@ -2931,18 +2931,34 @@ function detectFormat(rows) {
     if (h.includes('利用日') || h.includes('ご利用')) return { fmt:'vpass', headerIdx:i };
     if (h.includes('取引日') && (h.includes('取引先') || h.includes('支払'))) return { fmt:'paypay', headerIdx:i };
   }
-  // Fallback: treat first row as headers
+  // ヘッダーなしVpass: 1列目が日付形式 (YYYY/M/D) ならそのまま読む
+  if (rows.length > 0 && /^\d{4}\/\d{1,2}\/\d{1,2}$/.test((rows[0][0] || '').trim())) {
+    return { fmt:'vpass-noheader', headerIdx:-1 };
+  }
   return { fmt:'generic', headerIdx:0 };
+}
+
+function rawAmt(str) {
+  // 符号を保持したまま数値化
+  const s = String(str || '').trim();
+  const n = parseInt(s.replace(/[^0-9]/g, ''));
+  return isNaN(n) ? 0 : (s.startsWith('-') ? -n : n);
 }
 
 function rowToTxn(row, headers, fmt, autoClassOn, idx) {
   let date = TODAY, desc = '', amount = 0;
   const hi = k => headers.findIndex(h => h.includes(k));
 
-  if (fmt === 'vpass') {
+  if (fmt === 'vpass-noheader') {
+    // ヘッダーなしVpass: 日付,店名,国,支払区分,...,金額,...
+    date   = normalizeDate(row[0]);
+    desc   = row[1] || '';
+    const a = rawAmt(row[6]);   // ご利用金額（列7）
+    if (a <= 0) return null;    // 返品・マイナスはスキップ
+    amount = a;
+  } else if (fmt === 'vpass') {
     date   = normalizeDate(row[hi('利用日')]);
     desc   = row[hi('店名')] || row[hi('商品')] || '';
-    // prefer "今回払い金額" if exists, else "ご利用金額"
     const amtCol = hi('今回払い') >= 0 ? hi('今回払い') : hi('金額');
     amount = normalizeAmount(row[amtCol]);
   } else if (fmt === 'paypay') {
@@ -2954,7 +2970,7 @@ function rowToTxn(row, headers, fmt, autoClassOn, idx) {
     const payCol = hi('支払金額') >= 0 ? hi('支払金額') : hi('取引金額');
     amount = normalizeAmount(row[payCol]);
   } else {
-    // generic: guess columns
+    // generic
     const dateCol = hi('日付') >= 0 ? hi('日付') : hi('日') >= 0 ? hi('日') : 0;
     const amtCol  = headers.findIndex(h => /金額|amount/i.test(h));
     const descCol = headers.findIndex(h => /店名|商品|摘要|内容|description|memo/i.test(h));
@@ -2991,11 +3007,12 @@ function CsvImportScreen({ go }) {
     const tryProcess = (text) => {
       try {
         const rows = parseCSVText(text);
-        if (rows.length < 2) return false;
+        if (rows.length < 1) return false;
         const { fmt: detected, headerIdx } = detectFormat(rows);
         const useFmt = fmt === 'auto' ? detected : fmt;
-        const headers = rows[headerIdx];
-        const txns = rows.slice(headerIdx + 1)
+        const headers = headerIdx >= 0 ? rows[headerIdx] : [];
+        const dataRows = headerIdx >= 0 ? rows.slice(headerIdx + 1) : rows;
+        const txns = dataRows
           .map((r, i) => rowToTxn(r, headers, useFmt, autoClass, i))
           .filter(Boolean);
         if (!txns.length) return false;

@@ -360,18 +360,25 @@ function normDate(str) {
   return TODAY;
 }
 function normAmt(str) { const n=parseInt(String(str||'').replace(/[^0-9]/g,'')); return isNaN(n)?0:n; }
+function rawAmt(str) { const s=String(str||'').trim(); const n=parseInt(s.replace(/[^0-9]/g,'')); return isNaN(n)?0:(s.startsWith('-')?-n:n); }
 function detectCSVFormat(rows) {
   for (let i=0; i<Math.min(rows.length,10); i++) {
     const h = rows[i].join(',');
     if (h.includes('利用日')||h.includes('ご利用')) return { fmt:'vpass', headerIdx:i };
     if (h.includes('取引日')&&(h.includes('取引先')||h.includes('支払'))) return { fmt:'paypay', headerIdx:i };
   }
+  if (rows.length>0 && /^\d{4}\/\d{1,2}\/\d{1,2}$/.test((rows[0][0]||'').trim())) {
+    return { fmt:'vpass-noheader', headerIdx:-1 };
+  }
   return { fmt:'generic', headerIdx:0 };
 }
 function csvRowToTxn(row, headers, fmt, autoClassOn, idx) {
-  const hi = k => headers.findIndex(h=>h.includes(k));
+  const hi = k => (headers||[]).findIndex(h=>h.includes(k));
   let date=TODAY, desc='', amount=0;
-  if (fmt==='vpass') {
+  if (fmt==='vpass-noheader') {
+    date=normDate(row[0]); desc=row[1]||'';
+    const a=rawAmt(row[6]); if(a<=0) return null; amount=a;
+  } else if (fmt==='vpass') {
     date=normDate(row[hi('利用日')]); desc=row[hi('店名')]||row[hi('商品')]||'';
     const ac=hi('今回払い')>=0?hi('今回払い'):hi('金額'); amount=normAmt(row[ac]);
   } else if (fmt==='paypay') {
@@ -406,11 +413,12 @@ function CsvImportPanel({ onImported }) {
     const tryProcess = (text) => {
       try {
         const rows = parseCSVText(text);
-        if (rows.length < 2) return false;
+        if (rows.length < 1) return false;
         const { fmt: det, headerIdx } = detectCSVFormat(rows);
         const useFmt = fmt==='auto' ? det : fmt;
-        const headers = rows[headerIdx];
-        const txns = rows.slice(headerIdx+1).map((r,i)=>csvRowToTxn(r,headers,useFmt,autoClass,i)).filter(Boolean);
+        const headers = headerIdx >= 0 ? rows[headerIdx] : [];
+        const dataRows = headerIdx >= 0 ? rows.slice(headerIdx+1) : rows;
+        const txns = dataRows.map((r,i)=>csvRowToTxn(r,headers,useFmt,autoClass,i)).filter(Boolean);
         if (!txns.length) return false;
         setPreview(txns); setSelected(new Set(txns.map((_,i)=>i))); setStep('preview');
         return true;
