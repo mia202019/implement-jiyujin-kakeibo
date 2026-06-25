@@ -366,6 +366,7 @@ function detectCSVFormat(rows) {
     const h = rows[i].join(',');
     if (h.includes('利用日')||h.includes('ご利用')) return { fmt:'vpass', headerIdx:i };
     if (h.includes('取引日')&&(h.includes('取引先')||h.includes('支払'))) return { fmt:'paypay', headerIdx:i };
+    if (h.includes('支払金額')&&h.includes('入金額')) return { fmt:'bank-stmt', headerIdx:i };
   }
   if (rows.length>0 && /^\d{4}\/\d{1,2}\/\d{1,2}$/.test((rows[0][0]||'').trim())) {
     return { fmt:'vpass-noheader', headerIdx:-1 };
@@ -375,7 +376,13 @@ function detectCSVFormat(rows) {
 function csvRowToTxn(row, headers, fmt, autoClassOn, idx) {
   const hi = k => (headers||[]).findIndex(h=>h.includes(k));
   let date=TODAY, desc='', amount=0;
-  if (fmt==='vpass-noheader') {
+  if (fmt==='bank-stmt') {
+    date=normDate(`${row[0]}/${row[1]}/${row[2]}`); desc=row[7]||'';
+    const pay=normAmt(row[8]); const dep=normAmt(row[9]);
+    if(pay>0){amount=pay;}
+    else if(dep>0){return{tempId:idx,date,memo:desc,category:autoClassOn?guessCategory(desc):'その他',amount:dep,type:'income',division:'事業収入',payment:'振込'};}
+    else return null;
+  } else if (fmt==='vpass-noheader') {
     date=normDate(row[0]); desc=row[1]||'';
     const a=rawAmt(row[6]); if(a<=0) return null; amount=a;
   } else if (fmt==='vpass') {
@@ -452,7 +459,7 @@ function CsvImportPanel({ onImported }) {
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16 }}>
         <div>
           <div style={{ fontSize:11, fontWeight:700, color:C.textMuted, marginBottom:8 }}>形式</div>
-          {[['auto','🔍 自動検出'],['vpass','💳 Vpass'],['paypay','📱 PayPayビジネス']].map(([v,l])=>(
+          {[['auto','🔍 自動検出'],['vpass','💳 Vpass'],['paypay','📱 PayPayビジネス'],['bank-stmt','🏦 銀行通帳']].map(([v,l])=>(
             <button key={v} onClick={()=>setFmt(v)} style={{ display:'block', width:'100%', textAlign:'left', padding:'9px 12px', borderRadius:10, marginBottom:6, background:fmt===v?C.primaryLight:C.bg, border:`1.5px solid ${fmt===v?C.primary:'transparent'}`, color:fmt===v?C.primary:C.text, fontSize:13, fontWeight:fmt===v?700:500, cursor:'pointer' }}>{l}</button>
           ))}
         </div>

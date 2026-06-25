@@ -2930,8 +2930,8 @@ function detectFormat(rows) {
     const h = rows[i].join(',');
     if (h.includes('利用日') || h.includes('ご利用')) return { fmt:'vpass', headerIdx:i };
     if (h.includes('取引日') && (h.includes('取引先') || h.includes('支払'))) return { fmt:'paypay', headerIdx:i };
+    if (h.includes('支払金額') && h.includes('入金額')) return { fmt:'bank-stmt', headerIdx:i };
   }
-  // ヘッダーなしVpass: 1列目が日付形式 (YYYY/M/D) ならそのまま読む
   if (rows.length > 0 && /^\d{4}\/\d{1,2}\/\d{1,2}$/.test((rows[0][0] || '').trim())) {
     return { fmt:'vpass-noheader', headerIdx:-1 };
   }
@@ -2949,12 +2949,21 @@ function rowToTxn(row, headers, fmt, autoClassOn, idx) {
   let date = TODAY, desc = '', amount = 0;
   const hi = k => headers.findIndex(h => h.includes(k));
 
-  if (fmt === 'vpass-noheader') {
+  if (fmt === 'bank-stmt') {
+    // 銀行通帳形式: 年,月,日,...,内容,支払金額,入金額,残高,...
+    date   = normalizeDate(`${row[0]}/${row[1]}/${row[2]}`);
+    desc   = row[7] || '';
+    const pay = normalizeAmount(row[8]);
+    const dep = normalizeAmount(row[9]);
+    if (pay > 0) { amount = pay; }
+    else if (dep > 0) { amount = dep; return { tempId:idx, date, memo:desc, category: autoClassOn ? guessCategory(desc) : 'その他', amount, type:'income', division:'事業収入', payment:'振込' }; }
+    else return null;
+  } else if (fmt === 'vpass-noheader') {
     // ヘッダーなしVpass: 日付,店名,国,支払区分,...,金額,...
     date   = normalizeDate(row[0]);
     desc   = row[1] || '';
-    const a = rawAmt(row[6]);   // ご利用金額（列7）
-    if (a <= 0) return null;    // 返品・マイナスはスキップ
+    const a = rawAmt(row[6]);
+    if (a <= 0) return null;
     amount = a;
   } else if (fmt === 'vpass') {
     date   = normalizeDate(row[hi('利用日')]);
@@ -3090,7 +3099,7 @@ function CsvImportScreen({ go }) {
           {/* Format */}
           <Card style={{ marginBottom:14 }}>
             <div style={{ fontSize:11, fontWeight:700, color:C.textMuted, letterSpacing:'0.06em', marginBottom:10 }}>形式</div>
-            {[['auto','自動検出（おすすめ）','🔍'],['vpass','Vpass（三井住友カード）','💳'],['paypay','PayPayビジネス','📱']].map(([v,l,em]) => (
+            {[['auto','自動検出（おすすめ）','🔍'],['vpass','Vpass（三井住友カード）','💳'],['paypay','PayPayビジネス','📱'],['bank-stmt','銀行通帳（PayPay銀行など）','🏦']].map(([v,l,em]) => (
               <button key={v} type="button" onClick={() => setFmt(v)} style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:12, background:fmt===v ? C.primaryLight : C.bg, border:`1.5px solid ${fmt===v ? C.primary : 'transparent'}`, cursor:'pointer', textAlign:'left', marginBottom:6 }}>
                 <span style={{ fontSize:18 }}>{em}</span>
                 <span style={{ fontSize:13, fontWeight:fmt===v?700:500, color:fmt===v?C.primary:C.text }}>{l}</span>
