@@ -404,7 +404,7 @@ function csvRowToTxn(row, headers, fmt, autoClassOn, idx) {
 
 function CsvImportPanel({ onImported }) {
   const [step, setStep]         = useState('upload');
-  const [fmt, setFmt]           = useState('auto');
+  const [csvFmt, setCsvFmt]     = useState('auto');
   const [autoClass, setAutoClass] = useState(true);
   const [preview, setPreview]   = useState([]);
   const [selected, setSelected] = useState(new Set());
@@ -423,7 +423,7 @@ function CsvImportPanel({ onImported }) {
         const rows = parseCSVText(text);
         if (rows.length < 1) return false;
         const { fmt: det, headerIdx } = detectCSVFormat(rows);
-        const useFmt = fmt==='auto' ? det : fmt;
+        const useFmt = csvFmt==='auto' ? det : csvFmt;
         const headers = headerIdx >= 0 ? rows[headerIdx] : [];
         const dataRows = headerIdx >= 0 ? rows.slice(headerIdx+1) : rows;
         const txns = dataRows.map((r,i)=>csvRowToTxn(r,headers,useFmt,autoClass,i)).filter(Boolean);
@@ -465,7 +465,7 @@ function CsvImportPanel({ onImported }) {
         <div>
           <div style={{ fontSize:11, fontWeight:700, color:C.textMuted, marginBottom:8 }}>形式</div>
           {[['auto','🔍 自動検出'],['vpass','💳 Vpass'],['paypay','📱 PayPayビジネス'],['bank-stmt','🏦 銀行通帳']].map(([v,l])=>(
-            <button key={v} onClick={()=>setFmt(v)} style={{ display:'block', width:'100%', textAlign:'left', padding:'9px 12px', borderRadius:10, marginBottom:6, background:fmt===v?C.primaryLight:C.bg, border:`1.5px solid ${fmt===v?C.primary:'transparent'}`, color:fmt===v?C.primary:C.text, fontSize:13, fontWeight:fmt===v?700:500, cursor:'pointer' }}>{l}</button>
+            <button key={v} onClick={()=>setCsvFmt(v)} style={{ display:'block', width:'100%', textAlign:'left', padding:'9px 12px', borderRadius:10, marginBottom:6, background:csvFmt===v?C.primaryLight:C.bg, border:`1.5px solid ${csvFmt===v?C.primary:'transparent'}`, color:csvFmt===v?C.primary:C.text, fontSize:13, fontWeight:csvFmt===v?700:500, cursor:'pointer' }}>{l}</button>
           ))}
         </div>
         <div>
