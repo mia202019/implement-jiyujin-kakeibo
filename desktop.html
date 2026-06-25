@@ -1815,7 +1815,12 @@ function ReportScreen({ go }) {
 
   const byCat = {};
   currTxns.filter(t => t.type==='expense').forEach(t => { byCat[t.category] = (byCat[t.category]||0) + t.amount; });
-  const ranking = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([name,amt],i) => ({ rank:i+1, name, amt }));
+  const catTotal = Object.values(byCat).reduce((s,v) => s+v, 0);
+  const ranking = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([name,amt],i) => ({
+    rank:i+1, name, amt,
+    pct: catTotal > 0 ? Math.round(amt/catTotal*100) : 0,
+    emoji: CAT_EMOJI[name] || '📋',
+  }));
 
   const mom = [
     { label:'収入',    prevAmt: prevInc, currAmt: thisInc },
@@ -1874,18 +1879,34 @@ function ReportScreen({ go }) {
       </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start', marginBottom: 20 }}>
-        <Card>
-          <SectionTitle>支出カテゴリ Top4</SectionTitle>
+        <Card style={{ gridColumn: '1 / -1' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 }}>
+            <div style={{ fontSize:15, fontWeight:700, color:C.text }}>支出カテゴリ</div>
+            <div style={{ fontSize:13, fontWeight:600, color:C.textMuted }}>合計 ¥{fmt(catTotal)}</div>
+          </div>
           {ranking.length === 0 ? (
             <div style={{ textAlign:'center', padding:'24px 0', color:C.textFaint, fontSize:13 }}>まだ支出がありません</div>
-          ) : ranking.map(r => (
-            <div key={r.rank} style={{ display: 'flex', alignItems: 'center', gap: 13, marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.textMuted, width: 18 }}>{r.rank}</div>
-              <div style={{ width: 10, height: 10, borderRadius: 3, background: C.info }} />
-              <div style={{ flex: 1, fontSize: 14, color: C.text, fontWeight: 500 }}>{r.name}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFeatureSettings: tnum }}>¥{fmt(r.amt)}</div>
+          ) : (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px 28px' }}>
+              {ranking.map((r, idx) => {
+                const barColors = ['#097D60','#6366f1','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#14b8a6','#f97316','#84cc16'];
+                const col = barColors[idx % barColors.length];
+                return (
+                  <div key={r.name}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
+                      <span style={{ fontSize:20, flexShrink:0 }}>{r.emoji}</span>
+                      <span style={{ flex:1, fontSize:13, fontWeight:600, color:C.text }}>{r.name}</span>
+                      <span style={{ fontSize:12, color:C.textMuted, flexShrink:0 }}>{r.pct}%</span>
+                      <span style={{ fontSize:14, fontWeight:700, color:C.text, fontFeatureSettings:tnum, flexShrink:0 }}>¥{fmt(r.amt)}</span>
+                    </div>
+                    <div style={{ height:7, background:C.bgCard, borderRadius:4 }}>
+                      <div style={{ height:'100%', width:`${r.pct}%`, background:col, borderRadius:4, transition:'width 0.4s' }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          )}
         </Card>
         <Card>
           <SectionTitle>前月比較</SectionTitle>
