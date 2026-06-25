@@ -410,7 +410,7 @@ function csvRowToTxn(row, headers, fmt, autoClassOn, idx) {
     date=normDate(row[dc]); desc=nc>=0?row[nc]:row[1]||''; amount=ac>=0?normAmt(row[ac]):0;
   }
   if (!amount||amount<=0) return null;
-  return { tempId:idx, date, memo:desc, category:autoClassOn?guessCategory(desc):'その他', amount, type:'expense', division:fmt==='paypay'?'事業費':'生活費', payment };
+  return { tempId:idx, date, memo:desc, category:autoClassOn?guessCategory(desc):'その他', amount, type:'expense', division:(fmt==='paypay'||fmt==='bank-stmt')?'事業費':'生活費', payment };
 }
 
 function CsvImportPanel({ onImported }) {

@@ -3059,7 +3059,7 @@ function rowToTxn(row, headers, fmt, autoClassOn, idx) {
     tempId: idx,
     date, memo: desc,
     category: autoClassOn ? guessCategory(desc) : 'その他',
-    amount, type: 'expense', division: fmt === 'paypay' ? '事業費' : '生活費', payment,
+    amount, type: 'expense', division: (fmt === 'paypay' || fmt === 'bank-stmt') ? '事業費' : '生活費', payment,
   };
 }
 
