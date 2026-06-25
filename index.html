@@ -2926,12 +2926,12 @@ function normalizeAmount(str) {
 }
 
 function detectFormat(rows) {
-  // Find the header row (first row with useful text)
-  for (let i = 0; i < Math.min(rows.length, 5); i++) {
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
     const h = rows[i].join(',');
     if (h.includes('利用日') || h.includes('ご利用')) return { fmt:'vpass', headerIdx:i };
-    if (h.includes('取引日') && h.includes('取引先')) return { fmt:'paypay', headerIdx:i };
+    if (h.includes('取引日') && (h.includes('取引先') || h.includes('支払'))) return { fmt:'paypay', headerIdx:i };
   }
+  // Fallback: treat first row as headers
   return { fmt:'generic', headerIdx:0 };
 }
 
@@ -2987,24 +2987,43 @@ function CsvImportScreen({ go }) {
   const handleFile = e => {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
+
+    const tryProcess = (text) => {
       try {
-        const rows = parseCSVText(ev.target.result);
-        if (rows.length < 2) { showToast('データが見つかりませんでした'); return; }
+        const rows = parseCSVText(text);
+        if (rows.length < 2) return false;
         const { fmt: detected, headerIdx } = detectFormat(rows);
         const useFmt = fmt === 'auto' ? detected : fmt;
         const headers = rows[headerIdx];
         const txns = rows.slice(headerIdx + 1)
           .map((r, i) => rowToTxn(r, headers, useFmt, autoClass, i))
           .filter(Boolean);
-        if (!txns.length) { showToast('取り込める取引がありませんでした'); return; }
+        if (!txns.length) return false;
         setPreview(txns);
         setSelected(new Set(txns.map((_, i) => i)));
         setStep('preview');
-      } catch(err) { showToast('ファイルの読み込みに失敗しました'); }
+        return true;
+      } catch { return false; }
     };
-    reader.readAsText(file, 'UTF-8');
+
+    const readWith = (encoding, onDone) => {
+      const reader = new FileReader();
+      reader.onload = ev => onDone(ev.target.result);
+      reader.readAsText(file, encoding);
+    };
+
+    // Try UTF-8 → Shift-JIS → EUC-JP in sequence
+    readWith('UTF-8', text => {
+      if (!tryProcess(text)) {
+        readWith('Shift_JIS', text2 => {
+          if (!tryProcess(text2)) {
+            readWith('EUC-JP', text3 => {
+              if (!tryProcess(text3)) showToast('読み込めませんでした。形式を手動で選択してください');
+            });
+          }
+        });
+      }
+    });
   };
 
   const toggleAll = () => {

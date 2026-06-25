@@ -361,10 +361,10 @@ function normDate(str) {
 }
 function normAmt(str) { const n=parseInt(String(str||'').replace(/[^0-9]/g,'')); return isNaN(n)?0:n; }
 function detectCSVFormat(rows) {
-  for (let i=0; i<Math.min(rows.length,5); i++) {
+  for (let i=0; i<Math.min(rows.length,10); i++) {
     const h = rows[i].join(',');
     if (h.includes('利用日')||h.includes('ご利用')) return { fmt:'vpass', headerIdx:i };
-    if (h.includes('取引日')&&h.includes('取引先')) return { fmt:'paypay', headerIdx:i };
+    if (h.includes('取引日')&&(h.includes('取引先')||h.includes('支払'))) return { fmt:'paypay', headerIdx:i };
   }
   return { fmt:'generic', headerIdx:0 };
 }
@@ -402,20 +402,30 @@ function CsvImportPanel({ onImported }) {
 
   const handleFile = e => {
     const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
+
+    const tryProcess = (text) => {
       try {
-        const rows = parseCSVText(ev.target.result);
-        if (rows.length < 2) { showToast('データが見つかりませんでした'); return; }
+        const rows = parseCSVText(text);
+        if (rows.length < 2) return false;
         const { fmt: det, headerIdx } = detectCSVFormat(rows);
         const useFmt = fmt==='auto' ? det : fmt;
         const headers = rows[headerIdx];
         const txns = rows.slice(headerIdx+1).map((r,i)=>csvRowToTxn(r,headers,useFmt,autoClass,i)).filter(Boolean);
-        if (!txns.length) { showToast('取り込める取引がありませんでした'); return; }
+        if (!txns.length) return false;
         setPreview(txns); setSelected(new Set(txns.map((_,i)=>i))); setStep('preview');
-      } catch { showToast('ファイルの読み込みに失敗しました'); }
+        return true;
+      } catch { return false; }
     };
-    reader.readAsText(file, 'UTF-8');
+
+    const readWith = (enc, cb) => { const r=new FileReader(); r.onload=ev=>cb(ev.target.result); r.readAsText(file, enc); };
+
+    readWith('UTF-8', t => {
+      if (!tryProcess(t)) readWith('Shift_JIS', t2 => {
+        if (!tryProcess(t2)) readWith('EUC-JP', t3 => {
+          if (!tryProcess(t3)) showToast('読み込めませんでした。形式を手動で選択してください');
+        });
+      });
+    });
   };
 
   const toggle = i => { const n=new Set(selected); n.has(i)?n.delete(i):n.add(i); setSelected(n); };
