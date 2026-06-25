@@ -318,6 +318,215 @@ function MonthPill() {
   );
 }
 
+// ── CSV Import helpers ───────────────────────────────────────────────────────
+const CLASSIFY_RULES = [
+  { cat:'食費',        keys:['スーパー','コンビニ','セブン','ファミマ','ローソン','イオン','ヨーカドー','サミット','ライフ','オーケー','フーズ','フード','スシロー','マクドナルド','マック','すき家','松屋','吉野家','デニーズ','サイゼ','ガスト','バーガー','カフェ','スタバ','タリーズ','ドトール','牛丼','ラーメン','寿司','回転','定食','居酒屋','焼肉','弁当','食堂','レストラン'] },
+  { cat:'交通費',      keys:['JR','電鉄','鉄道','バス','タクシー','SUICA','Suica','IC','JAL','ANA','新幹線','高速','ハイウェイ','ETC','駐車','パーキング','メトロ','地下鉄','モノレール','リムジン','AIRPORT'] },
+  { cat:'通信費',      keys:['ドコモ','NTT','ソフトバンク','SOFTBANK','KDDI','楽天モバイル','IIJ','OCN','SIM','BIGLOBE'] },
+  { cat:'医療・健康',  keys:['病院','クリニック','診療','薬局','ドラッグ','マツキヨ','ツルハ','ウエルシア','サンドラッグ','調剤','医院','歯科','眼科','整骨','ジム','スポーツクラブ','フィットネス','ヨガ'] },
+  { cat:'趣味・娯楽',  keys:['NETFLIX','Netflix','SPOTIFY','Spotify','DISNEY','HULU','映画','シネマ','BOOK','本屋','書店','TSUTAYA','ゲーム','STEAM','PSN','NINTENDO','APP STORE','GOOGLE PLAY','ITUNES','カラオケ','ボウリング'] },
+  { cat:'美容・衣服',  keys:['美容室','美容院','ヘアカット','サロン','ZARA','ユニクロ','UNIQLO','GU','無印','MUJI','しまむら','ZOZOTOWN','ABCマート','アパレル','コスメ'] },
+  { cat:'材料費',      keys:['東急ハンズ','ハンズ','ロフト','ホームセンター','カインズ','コーナン','コメリ','材料','資材','仕入'] },
+  { cat:'機材・ソフト',keys:['APPLE','アップル','ヨドバシ','ビックカメラ','エディオン','ケーズデンキ','ADOBE','MICROSOFT','AWS','GOOGLE','CLOUD'] },
+  { cat:'教育・学習',  keys:['UDEMY','Udemy','SCHOO','セミナー','講座','予備校','参考書','研修'] },
+  { cat:'交際費',      keys:['接待','会食'] },
+];
+function guessCategory(name) {
+  if (!name) return 'その他';
+  const up = name.toUpperCase();
+  for (const rule of CLASSIFY_RULES) {
+    if (rule.keys.some(k => up.includes(k.toUpperCase()))) return rule.cat;
+  }
+  return 'その他';
+}
+function parseCSVText(text) {
+  const lines = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  return lines.filter(l => l.trim()).map(line => {
+    const cols = []; let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { if (inQ && line[i+1]==='"') { cur+='"'; i++; } else inQ=!inQ; }
+      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur=''; }
+      else cur += ch;
+    }
+    cols.push(cur.trim()); return cols;
+  });
+}
+function normDate(str) {
+  if (!str) return TODAY;
+  const s = str.replace(/年/,'-').replace(/月/,'-').replace(/日/,'').replace(/\//g,'-').trim().slice(0,10);
+  if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)) { const [y,m,d]=s.split('-'); return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`; }
+  if (/^\d{1,2}-\d{1,2}$/.test(s)) { const [m,d]=s.split('-'); return `${TODAY.slice(0,4)}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`; }
+  return TODAY;
+}
+function normAmt(str) { const n=parseInt(String(str||'').replace(/[^0-9]/g,'')); return isNaN(n)?0:n; }
+function detectCSVFormat(rows) {
+  for (let i=0; i<Math.min(rows.length,5); i++) {
+    const h = rows[i].join(',');
+    if (h.includes('利用日')||h.includes('ご利用')) return { fmt:'vpass', headerIdx:i };
+    if (h.includes('取引日')&&h.includes('取引先')) return { fmt:'paypay', headerIdx:i };
+  }
+  return { fmt:'generic', headerIdx:0 };
+}
+function csvRowToTxn(row, headers, fmt, autoClassOn, idx) {
+  const hi = k => headers.findIndex(h=>h.includes(k));
+  let date=TODAY, desc='', amount=0;
+  if (fmt==='vpass') {
+    date=normDate(row[hi('利用日')]); desc=row[hi('店名')]||row[hi('商品')]||'';
+    const ac=hi('今回払い')>=0?hi('今回払い'):hi('金額'); amount=normAmt(row[ac]);
+  } else if (fmt==='paypay') {
+    const tv=row[hi('種別')]||''; if(tv&&!tv.includes('支払')&&!tv.includes('決済')) return null;
+    date=normDate((row[hi('取引日')]||'').slice(0,10)); desc=row[hi('取引先名')]||row[hi('備考')]||'';
+    const pc=hi('支払金額')>=0?hi('支払金額'):hi('取引金額'); amount=normAmt(row[pc]);
+  } else {
+    const dc=hi('日付')>=0?hi('日付'):hi('日')>=0?hi('日'):0;
+    const ac=headers.findIndex(h=>/金額|amount/i.test(h));
+    const nc=headers.findIndex(h=>/店名|商品|摘要|内容|description|memo/i.test(h));
+    date=normDate(row[dc]); desc=nc>=0?row[nc]:row[1]||''; amount=ac>=0?normAmt(row[ac]):0;
+  }
+  if (!amount||amount<=0) return null;
+  return { tempId:idx, date, memo:desc, category:autoClassOn?guessCategory(desc):'その他', amount, type:'expense', division:'生活費', payment:'カード' };
+}
+
+function CsvImportPanel({ onImported }) {
+  const [step, setStep]         = useState('upload');
+  const [fmt, setFmt]           = useState('auto');
+  const [autoClass, setAutoClass] = useState(true);
+  const [preview, setPreview]   = useState([]);
+  const [selected, setSelected] = useState(new Set());
+  const [editIdx, setEditIdx]   = useState(null);
+  const [toast, setToast]       = useState('');
+
+  const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 2500); };
+  const allSelected = preview.length > 0 && preview.every((_,i) => selected.has(i));
+
+  const handleFile = e => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const rows = parseCSVText(ev.target.result);
+        if (rows.length < 2) { showToast('データが見つかりませんでした'); return; }
+        const { fmt: det, headerIdx } = detectCSVFormat(rows);
+        const useFmt = fmt==='auto' ? det : fmt;
+        const headers = rows[headerIdx];
+        const txns = rows.slice(headerIdx+1).map((r,i)=>csvRowToTxn(r,headers,useFmt,autoClass,i)).filter(Boolean);
+        if (!txns.length) { showToast('取り込める取引がありませんでした'); return; }
+        setPreview(txns); setSelected(new Set(txns.map((_,i)=>i))); setStep('preview');
+      } catch { showToast('ファイルの読み込みに失敗しました'); }
+    };
+    reader.readAsText(file, 'UTF-8');
+  };
+
+  const toggle = i => { const n=new Set(selected); n.has(i)?n.delete(i):n.add(i); setSelected(n); };
+  const updateRow = (i,u) => setPreview(p=>p.map((r,j)=>j===i?{...r,...u}:r));
+
+  const importAll = () => {
+    const toAdd = preview.filter((_,i)=>selected.has(i)).map((r,i)=>{const{tempId,...rest}=r;return{...rest,id:Date.now()+i};});
+    Store.set('transactions', [...toAdd, ...Store.get('transactions',[])]);
+    showToast(`${toAdd.length}件を取り込みました`); setStep('upload'); setPreview([]); setSelected(new Set());
+    if (onImported) onImported();
+  };
+
+  if (step === 'upload') return (
+    <div>
+      {toast && <div style={{ background:'#D1FAE5', color:'#065F46', borderRadius:10, padding:'10px 16px', marginBottom:16, fontSize:13, fontWeight:600 }}>{toast}</div>}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16 }}>
+        <div>
+          <div style={{ fontSize:11, fontWeight:700, color:C.textMuted, marginBottom:8 }}>形式</div>
+          {[['auto','🔍 自動検出'],['vpass','💳 Vpass'],['paypay','📱 PayPayビジネス']].map(([v,l])=>(
+            <button key={v} onClick={()=>setFmt(v)} style={{ display:'block', width:'100%', textAlign:'left', padding:'9px 12px', borderRadius:10, marginBottom:6, background:fmt===v?C.primaryLight:C.bg, border:`1.5px solid ${fmt===v?C.primary:'transparent'}`, color:fmt===v?C.primary:C.text, fontSize:13, fontWeight:fmt===v?700:500, cursor:'pointer' }}>{l}</button>
+          ))}
+        </div>
+        <div>
+          <div style={{ fontSize:11, fontWeight:700, color:C.textMuted, marginBottom:8 }}>自動カテゴリ分類</div>
+          <div style={{ background:C.bg, borderRadius:12, padding:'12px 14px' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+              <span style={{ fontSize:13, fontWeight:600, color:C.text }}>自動分類</span>
+              <button onClick={()=>setAutoClass(v=>!v)} style={{ width:42,height:24,borderRadius:12,background:autoClass?C.primary:C.border,position:'relative',border:'none',cursor:'pointer' }}>
+                <div style={{ width:18,height:18,background:'white',borderRadius:'50%',position:'absolute',top:3,left:autoClass?21:3,transition:'left .2s',boxShadow:'0 1px 3px rgba(0,0,0,0.2)' }} />
+              </button>
+            </div>
+            <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.7 }}>コンビニ→食費<br/>JR→交通費<br/>Netflix→趣味娯楽</div>
+          </div>
+        </div>
+      </div>
+      <label style={{ display:'block', cursor:'pointer' }}>
+        <input type="file" accept=".csv,.txt" onChange={handleFile} style={{ display:'none' }} />
+        <div style={{ background:'#EFF6FF', border:'2px dashed #93C5FD', borderRadius:16, padding:'32px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
+          <div style={{ fontSize:36 }}>📂</div>
+          <div style={{ fontSize:15, fontWeight:700, color:'#1D4ED8' }}>CSVファイルを選択</div>
+          <div style={{ fontSize:12, color:'#3B82F6', textAlign:'center' }}>Vpass・PayPayビジネスからダウンロードしたCSV</div>
+        </div>
+      </label>
+      <div style={{ marginTop:12, background:'#F0F9FF', borderRadius:10, padding:'10px 14px', fontSize:11, color:'#0369A1', lineHeight:1.9 }}>
+        <strong>Vpass:</strong> マイページ → ご利用明細 → CSV出力<br/>
+        <strong>PayPayビジネス:</strong> 管理画面 → 入出金明細 → CSV出力
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      {toast && <div style={{ background:'#D1FAE5', color:'#065F46', borderRadius:10, padding:'10px 16px', marginBottom:16, fontSize:13, fontWeight:600 }}>{toast}</div>}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+        <button onClick={()=>{ const n=allSelected?new Set():new Set(preview.map((_,i)=>i)); setSelected(n); }} style={{ display:'flex', alignItems:'center', gap:8, background:'none', border:'none', cursor:'pointer', padding:0 }}>
+          <div style={{ width:20,height:20,borderRadius:5,border:`2px solid ${allSelected?C.primary:C.border}`,background:allSelected?C.primary:'white',display:'flex',alignItems:'center',justifyContent:'center' }}>
+            {allSelected && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          </div>
+          <span style={{ fontSize:13, fontWeight:600, color:C.text }}>すべて選択</span>
+        </button>
+        <span style={{ fontSize:12, color:C.textMuted }}>{selected.size}件選択 / {preview.length}件</span>
+      </div>
+      <div style={{ maxHeight:340, overflowY:'auto', marginBottom:14 }}>
+        {preview.map((row,i) => {
+          const checked=selected.has(i), isEdit=editIdx===i;
+          const catObj=EXPENSE_CATS.find(c=>c.name===row.category);
+          return (
+            <React.Fragment key={i}>
+              <div onClick={()=>toggle(i)} style={{ display:'flex', alignItems:'center', gap:10, background:checked?C.primaryLight:'white', borderRadius:isEdit?'10px 10px 0 0':10, padding:'10px 12px', marginBottom:isEdit?0:6, border:`1.5px solid ${checked?C.primary:'transparent'}`, cursor:'pointer' }}>
+                <div style={{ width:18,height:18,borderRadius:4,border:`2px solid ${checked?C.primary:C.border}`,background:checked?C.primary:'white',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+                  {checked && <svg width="9" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.memo||'—'}</div>
+                  <div style={{ fontSize:11, color:C.textMuted }}>{row.date} · <span style={{ background:C.infoBg, color:C.info, borderRadius:4, padding:'1px 5px', fontWeight:600, fontSize:10 }}>{catObj?.emoji||'📋'} {row.category}</span></div>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:C.text, fontFeatureSettings:tnum }}>¥{fmt(row.amount)}</div>
+                  <button onClick={e=>{e.stopPropagation();setEditIdx(isEdit?null:i);}} style={{ width:24,height:24,borderRadius:6,background:isEdit?C.primary:'#E8F5F1',color:isEdit?'white':C.primary,fontSize:11,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>✏</button>
+                </div>
+              </div>
+              {isEdit && (
+                <div style={{ background:'white', borderRadius:'0 0 10px 10px', padding:'10px 12px', border:`1.5px solid ${C.primary}`, borderTop:'none', marginBottom:6 }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:4, marginBottom:8 }}>
+                    {[...EXPENSE_CATS,{name:'その他',emoji:'📋'}].map(c=>(
+                      <button key={c.name} onClick={()=>updateRow(i,{category:c.name})} style={{ background:row.category===c.name?C.primary:C.bg, color:row.category===c.name?'white':C.text, borderRadius:7, padding:'5px 3px', fontSize:9, fontWeight:700, border:'none', cursor:'pointer', textAlign:'center' }}>
+                        <span style={{ fontSize:14, display:'block' }}>{c.emoji}</span>{c.name}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display:'flex', gap:5 }}>
+                    {['生活費','事業費','投資'].map(d=>(
+                      <button key={d} onClick={()=>updateRow(i,{division:d})} style={{ flex:1, background:row.division===d?C.primary:C.bg, color:row.division===d?'white':C.textMuted, borderRadius:7, padding:'6px', fontSize:11, fontWeight:700, border:'none', cursor:'pointer' }}>{d}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+      <div style={{ display:'flex', gap:8 }}>
+        <button onClick={()=>{setStep('upload');setPreview([]);setSelected(new Set());setEditIdx(null);}} style={{ padding:'11px 20px', borderRadius:12, background:C.bg, color:C.textMuted, border:'none', cursor:'pointer', fontSize:13 }}>← 戻る</button>
+        <button onClick={importAll} style={{ flex:1, background:selected.size>0?C.primary:C.border, color:'white', borderRadius:12, padding:'11px', fontSize:14, fontWeight:700, border:'none', cursor:selected.size>0?'pointer':'default', boxShadow:selected.size>0?'0 4px 14px rgba(9,125,96,0.3)':'none' }}>
+          {selected.size>0?`${selected.size}件を取り込む`:'取引を選択してください'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Business (事業管理) ──────────────────────────────────────────────────────
 function exportToFreee(expenses, income, ym) {
   const ACCOUNT_MAP = {
@@ -1180,8 +1389,9 @@ function InputScreen({ go }) {
           <div style={{ display: 'flex', background: C.primaryLight, borderRadius: 14, padding: 4, gap: 3, marginBottom: 26 }}>
             <button onClick={() => setMode('expense')} style={{ flex: 1, background: mode === 'expense' ? C.primary : 'transparent', color: mode === 'expense' ? 'white' : C.textMed, borderRadius: 11, padding: '12px', fontSize: 14, fontWeight: 700, boxShadow: mode === 'expense' ? '0 3px 10px rgba(9,125,96,0.28)' : 'none' }}>💸　支出</button>
             <button onClick={() => setMode('income')} style={{ flex: 1, background: mode === 'income' ? C.primary : 'transparent', color: mode === 'income' ? 'white' : C.textMed, borderRadius: 11, padding: '12px', fontSize: 14, fontWeight: 700, boxShadow: mode === 'income' ? '0 3px 10px rgba(9,125,96,0.28)' : 'none' }}>💰　収入</button>
+            <button onClick={() => setMode('csv')} style={{ flex: 1, background: mode === 'csv' ? '#1D4ED8' : 'transparent', color: mode === 'csv' ? 'white' : C.textMed, borderRadius: 11, padding: '12px', fontSize: 14, fontWeight: 700, boxShadow: mode === 'csv' ? '0 3px 10px rgba(29,78,216,0.28)' : 'none' }}>📂　CSV取り込み</button>
           </div>
-          {mode === 'expense' ? <ExpenseForm onSave={onSave} /> : <IncomeForm onSave={onSave} />}
+          {mode === 'expense' ? <ExpenseForm onSave={onSave} /> : mode === 'income' ? <IncomeForm onSave={onSave} /> : <CsvImportPanel onImported={onSave} />}
         </Card>
 
         <Card>
