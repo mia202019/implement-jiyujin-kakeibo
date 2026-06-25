@@ -259,6 +259,18 @@ function Screen({ children, bg = C.bg }) {
   );
 }
 
+// ── 00 Utility ─────────────────────────────────────────────────────────────
+function syncSubToFixed(memo, amount) {
+  const m = (memo || '').trim();
+  if (!m) return;
+  const fixed = Store.get('fixedExpenses', []);
+  if (fixed.some(i => i.name === m && i.amount === amount)) return;
+  Store.set('fixedExpenses', [...fixed, {
+    id: Date.now(), name: m, amount, cat: 'sub',
+    payment: 'カード', cycle: 'monthly', day: '毎月1日', month: '1', division: '生活費', active: true,
+  }]);
+}
+
 // ── 01 Login ───────────────────────────────────────────────────────────────
 function LoginScreen({ onSkip }) {
   const [loading, setLoading] = useState(false);
@@ -1036,6 +1048,7 @@ function HistoryScreen({ go }) {
   const handleSave = updated => {
     const next = txns.map(t=>t.id===updated.id?updated:t);
     setTxns(next); Store.set('transactions', next); setEditTxn(null);
+    if (updated.category === 'サブスク') syncSubToFixed(updated.memo, updated.amount);
   };
   const handleDelete = () => {
     const next = txns.filter(t=>t.id!==editTxn.id);
@@ -1437,6 +1450,7 @@ function InputSelector({ go }) {
   const handleSave = (updated) => {
     const next = txns.map(t => t.id === updated.id ? updated : t);
     Store.set('transactions', next); setTxns(next); setEditTxn(null);
+    if (updated.category === 'サブスク') syncSubToFixed(updated.memo, updated.amount);
   };
   const handleDelete = (id) => {
     const next = txns.filter(t => t.id !== id);
@@ -3684,6 +3698,8 @@ function App() {
       setScreen(Store.get('settings', {}).onboardingDone ? 'home' : 'usertype');
       setLoading(false);
       setTimeout(autoBackupCheck, 2000);
+      // 既存のサブスク取引を固定費一覧に同期
+      Store.get('transactions', []).filter(t => t.category === 'サブスク').forEach(t => syncSubToFixed(t.memo, t.amount));
     };
 
     sb.auth.getSession().then(({ data: { session } }) => {

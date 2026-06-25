@@ -341,6 +341,18 @@ function guessCategory(name) {
   }
   return 'その他';
 }
+
+function syncSubToFixed(memo, amount) {
+  const m = (memo || '').trim();
+  if (!m) return;
+  const fixed = Store.get('fixedExpenses', []);
+  if (fixed.some(i => i.name === m && i.amount === amount)) return;
+  Store.set('fixedExpenses', [...fixed, {
+    id: Date.now(), name: m, amount, cat: 'sub',
+    payment: 'カード', cycle: 'monthly', day: '毎月1日', month: '1', division: '生活費', active: true,
+  }]);
+}
+
 function parseCSVText(text) {
   const lines = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
   const firstLine = lines[0] || '';
@@ -2961,6 +2973,7 @@ function HistoryScreen({ go }) {
   const handleSave = u => {
     const next = all.map(t => t.id === u.id ? u : t);
     setAll(next); Store.set('transactions', next); setEditTxn(null);
+    if (u.category === 'サブスク') syncSubToFixed(u.memo, u.amount);
   };
   const handleDelete = () => {
     const next = all.filter(t => t.id !== editTxn.id);
@@ -3089,6 +3102,8 @@ function App() {
       if (!Store.get('settings', {}).onboardingDone) setScreen('usertype');
       setLoading(false);
       setTimeout(autoBackupCheck, 2000);
+      // 既存のサブスク取引を固定費一覧に同期
+      Store.get('transactions', []).filter(t => t.category === 'サブスク').forEach(t => syncSubToFixed(t.memo, t.amount));
     };
 
     sb.auth.getSession().then(({ data: { session } }) => {
