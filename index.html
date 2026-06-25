@@ -745,8 +745,8 @@ function HomeScreen({ go }) {
 
   const daysSoFar = today.getDate();
   const dailyRate = daysSoFar > 0 ? lifeBizSpent / daysSoFar : 0;
-  const projected = dailyRate * daysInMonth;
-  const monthEndBalance = displayIncome - projected - taxGoal - investGoal - fixedTotal;
+  const projected = Math.round(dailyRate * daysInMonth);
+  const monthEndBalance = Math.round(displayIncome - projected - taxGoal - investGoal - fixedTotal);
 
   const nwData = Store.get('networth', { assets: [], liabilities: [] });
   const totalAssets = (nwData.assets||[]).reduce((s,a)=>s+a.amount,0);
@@ -766,7 +766,7 @@ function HomeScreen({ go }) {
   const advisoryBad = spendPct >= 90 || taxShortfall > 0;
   let advisory = '';
   if (totalSpent === 0) advisory = 'まだ今月の記録がありません。入力してみましょう。';
-  else if (spendPct >= 90) advisory = `消費枠の${spendPct}%を使用。残り${daysLeft}日で¥${fmt(lifeBizLeft)}です。`;
+  else if (spendPct >= 90) advisory = lifeBizLeft < 0 ? `消費枠の${spendPct}%を使用。-¥${fmt(-lifeBizLeft)}の超過です。` : `消費枠の${spendPct}%を使用。残り${daysLeft}日で¥${fmt(lifeBizLeft)}です。`;
   else if (taxShortfall > 0 && taxGoal > 0) advisory = `税金積立が¥${fmt(taxShortfall)}不足。月内に積立を。`;
   else if (spendPct <= 60 && daysLeft < 15) advisory = `消費ペースは良好（${spendPct}%）。このペースをキープ！`;
   else advisory = `${monthLabel}は順調です。このペースをキープしましょう。`;
