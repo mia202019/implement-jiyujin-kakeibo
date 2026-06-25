@@ -457,9 +457,11 @@ function CsvImportPanel({ onImported }) {
           }
           dataRows = enriched;
         }
-        const txns = dataRows.map((r,i)=>csvRowToTxn(r,headers,useFmt,autoClass,i)).filter(Boolean);
+        const existing = Store.get('transactions', []);
+        const txns = dataRows.map((r,i)=>csvRowToTxn(r,headers,useFmt,autoClass,i)).filter(Boolean)
+          .map(t => ({ ...t, isDuplicate: existing.some(e => e.date===t.date && e.amount===t.amount) }));
         if (!txns.length) return false;
-        setPreview(txns); setSelected(new Set(txns.map((_,i)=>i))); setStep('preview');
+        setPreview(txns); setSelected(new Set(txns.map((_,i)=>i).filter(i=>!txns[i].isDuplicate))); setStep('preview');
         return true;
       } catch { return false; }
     };
@@ -531,6 +533,15 @@ function CsvImportPanel({ onImported }) {
   return (
     <div>
       {toast && <div style={{ background:'#D1FAE5', color:'#065F46', borderRadius:10, padding:'10px 16px', marginBottom:16, fontSize:13, fontWeight:600 }}>{toast}</div>}
+      {preview.some(r=>r.isDuplicate) && (
+        <div style={{ background:'#FFF7ED', border:'1.5px solid #F59E0B', borderRadius:10, padding:'10px 14px', marginBottom:10, display:'flex', alignItems:'center', gap:8 }}>
+          <span>⚠️</span>
+          <div>
+            <div style={{ fontSize:12, fontWeight:700, color:'#92400E' }}>{preview.filter(r=>r.isDuplicate).length}件の重複が検出されました</div>
+            <div style={{ fontSize:11, color:'#B45309' }}>同じ日付・金額の記録が既に存在します。チェックを外した状態にしています。</div>
+          </div>
+        </div>
+      )}
       {showCardFilter && (
         <div style={{ display:'flex', gap:6, marginBottom:10, flexWrap:'wrap' }}>
           {['all', ...cardNames].map(c => (
@@ -556,13 +567,13 @@ function CsvImportPanel({ onImported }) {
           const catObj=EXPENSE_CATS.find(c=>c.name===row.category);
           return (
             <React.Fragment key={i}>
-              <div onClick={()=>toggle(i)} style={{ display:'flex', alignItems:'center', gap:10, background:checked?C.primaryLight:'white', borderRadius:isEdit?'10px 10px 0 0':10, padding:'10px 12px', marginBottom:isEdit?0:6, border:`1.5px solid ${checked?C.primary:'transparent'}`, cursor:'pointer' }}>
+              <div onClick={()=>toggle(i)} style={{ display:'flex', alignItems:'center', gap:10, background:row.isDuplicate?'#FFFBEB':checked?C.primaryLight:'white', borderRadius:isEdit?'10px 10px 0 0':10, padding:'10px 12px', marginBottom:isEdit?0:6, border:`1.5px solid ${row.isDuplicate?'#F59E0B':checked?C.primary:'transparent'}`, cursor:'pointer' }}>
                 <div style={{ width:18,height:18,borderRadius:4,border:`2px solid ${checked?C.primary:C.border}`,background:checked?C.primary:'white',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
                   {checked && <svg width="9" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                 </div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:13, fontWeight:600, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.memo||'—'}</div>
-                  <div style={{ fontSize:11, color:C.textMuted }}>{row.date} · <span style={{ background:C.infoBg, color:C.info, borderRadius:4, padding:'1px 5px', fontWeight:600, fontSize:10 }}>{catObj?.emoji||'📋'} {row.category}</span></div>
+                  <div style={{ fontSize:11, color:C.textMuted }}>{row.date} · <span style={{ background:C.infoBg, color:C.info, borderRadius:4, padding:'1px 5px', fontWeight:600, fontSize:10 }}>{catObj?.emoji||'📋'} {row.category}</span>{row.isDuplicate && <span style={{ marginLeft:4, background:'#FEF3C7', color:'#92400E', borderRadius:4, padding:'1px 5px', fontWeight:700, fontSize:10 }}>重複</span>}</div>
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                   <div style={{ fontSize:13, fontWeight:700, color:C.text, fontFeatureSettings:tnum }}>¥{fmt(row.amount)}</div>

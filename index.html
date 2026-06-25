@@ -3118,12 +3118,17 @@ function CsvImportScreen({ go }) {
           }
           dataRows = enriched;
         }
+        const existing = Store.get('transactions', []);
         const txns = dataRows
           .map((r, i) => rowToTxn(r, headers, useFmt, autoClass, i))
-          .filter(Boolean);
+          .filter(Boolean)
+          .map(t => {
+            const dup = existing.some(e => e.date === t.date && e.amount === t.amount);
+            return { ...t, isDuplicate: dup };
+          });
         if (!txns.length) return false;
         setPreview(txns);
-        setSelected(new Set(txns.map((_, i) => i)));
+        setSelected(new Set(txns.map((_, i) => i).filter(i => !txns[i].isDuplicate)));
         setStep('preview');
         return true;
       } catch(err) { return false; }
@@ -3251,6 +3256,19 @@ function CsvImportScreen({ go }) {
             </div>
           </div>
         </>) : (<>
+          {/* Duplicate warning */}
+          {preview.some(r => r.isDuplicate) && (
+            <div style={{ background:'#FFF7ED', border:'1.5px solid #F59E0B', borderRadius:12, padding:'10px 14px', marginBottom:10, display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:16 }}>⚠️</span>
+              <div>
+                <div style={{ fontSize:12, fontWeight:700, color:'#92400E' }}>
+                  {preview.filter(r=>r.isDuplicate).length}件の重複が検出されました
+                </div>
+                <div style={{ fontSize:11, color:'#B45309' }}>同じ日付・金額の記録が既に存在します。チェックを外した状態にしています。</div>
+              </div>
+            </div>
+          )}
+
           {/* Card filter chips */}
           {showCardFilter && (
             <div style={{ display:'flex', gap:6, marginBottom:10, flexWrap:'wrap' }}>
@@ -3281,7 +3299,7 @@ function CsvImportScreen({ go }) {
             const catObj = EXPENSE_CATS.find(c => c.name === row.category);
             return (
               <React.Fragment key={i}>
-                <div style={{ display:'flex', alignItems:'center', gap:10, background:checked ? C.primaryLight : 'white', borderRadius:isEditing ? '12px 12px 0 0' : 12, padding:'11px 12px', marginBottom:isEditing ? 0 : 6, border:`1.5px solid ${checked ? C.primary : 'transparent'}`, cursor:'pointer' }} onClick={() => toggle(i)}>
+                <div style={{ display:'flex', alignItems:'center', gap:10, background: row.isDuplicate ? '#FFFBEB' : checked ? C.primaryLight : 'white', borderRadius:isEditing ? '12px 12px 0 0' : 12, padding:'11px 12px', marginBottom:isEditing ? 0 : 6, border:`1.5px solid ${row.isDuplicate ? '#F59E0B' : checked ? C.primary : 'transparent'}`, cursor:'pointer' }} onClick={() => toggle(i)}>
                   <div style={{ width:20, height:20, borderRadius:5, border:`2px solid ${checked ? C.primary : C.border}`, background:checked ? C.primary : 'white', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                     {checked && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                   </div>
@@ -3289,6 +3307,7 @@ function CsvImportScreen({ go }) {
                     <div style={{ fontSize:12, fontWeight:600, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.memo || '—'}</div>
                     <div style={{ fontSize:11, color:C.textMuted, marginTop:1 }}>
                       {row.date} · <span style={{ background:C.infoBg, color:C.info, borderRadius:4, padding:'1px 6px', fontWeight:600, fontSize:10 }}>{catObj?.emoji || '📋'} {row.category}</span>
+                      {row.isDuplicate && <span style={{ marginLeft:4, background:'#FEF3C7', color:'#92400E', borderRadius:4, padding:'1px 6px', fontWeight:700, fontSize:10 }}>重複</span>}
                     </div>
                   </div>
                   <div style={{ display:'flex', alignItems:'center', gap:6 }}>
