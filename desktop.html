@@ -2210,6 +2210,15 @@ function FixedExpensesScreen({ go }) {
     const txns = Store.get('transactions', []);
     const updated = txns.map(t => group.txnIds.includes(t.id) ? { ...t, category: 'サブスク', division: '生活費' } : t);
     Store.set('transactions', updated);
+    // fixedExpenses に未登録なら追加
+    const fixed = Store.get('fixedExpenses', []);
+    const alreadyExists = fixed.some(i => i.name === group.memo && i.amount === group.amount);
+    if (!alreadyExists) {
+      const newItem = { id: Date.now(), name: group.memo, amount: group.amount, cat: 'sub', payment: 'カード', cycle: 'monthly', day: '毎月1日', month: '1', division: '生活費', active: true };
+      const nextFixed = [...fixed, newItem];
+      setItems(nextFixed);
+      Store.set('fixedExpenses', nextFixed);
+    }
     const next = new Set([...dismissedSubKeys, group.key]);
     setDismissedSubKeys(next);
     Store.set('dismissedSubKeys', [...next]);
