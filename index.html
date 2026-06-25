@@ -992,6 +992,8 @@ function HistoryScreen({ go }) {
   const [txns, setTxns] = useState(() => Store.get('transactions', []).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')));
   const [editTxn, setEditTxn] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [selectMode, setSelectMode] = useState(false);
+  const [bulkSel, setBulkSel] = useState(new Set());
 
   const filtered = filter === 'all' ? txns
     : filter === 'income' ? txns.filter(t=>t.type==='income')
@@ -1005,6 +1007,22 @@ function HistoryScreen({ go }) {
     else last.items.push(t);
   });
 
+  const allBulkSel = filtered.length > 0 && filtered.every(t => bulkSel.has(t.id));
+  const toggleAllBulk = () => {
+    if (allBulkSel) setBulkSel(new Set());
+    else setBulkSel(new Set(filtered.map(t => t.id)));
+  };
+  const toggleBulk = id => {
+    const next = new Set(bulkSel);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setBulkSel(next);
+  };
+  const bulkDelete = () => {
+    if (!bulkSel.size) return;
+    const next = txns.filter(t => !bulkSel.has(t.id));
+    setTxns(next); Store.set('transactions', next);
+    setBulkSel(new Set()); setSelectMode(false);
+  };
   const handleSave = updated => {
     const next = txns.map(t=>t.id===updated.id?updated:t);
     setTxns(next); Store.set('transactions', next); setEditTxn(null);
@@ -1021,10 +1039,13 @@ function HistoryScreen({ go }) {
           <button onClick={()=>go('home')} style={{ width:36, height:36, borderRadius:10, background:'white', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 1px 6px rgba(0,0,0,0.08)', flexShrink:0, border:'none', cursor:'pointer' }}>
             <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7l6 6" stroke={C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
-          <div>
+          <div style={{ flex:1 }}>
             <div style={{ fontSize:20, fontWeight:700, color:C.text }}>記録一覧</div>
-            <div style={{ fontSize:12, color:C.textMuted }}>タップで編集・削除できます</div>
+            <div style={{ fontSize:12, color:C.textMuted }}>{selectMode ? `${bulkSel.size}件選択中` : 'タップで編集・削除できます'}</div>
           </div>
+          <button onClick={() => { setSelectMode(v => !v); setBulkSel(new Set()); }} style={{ padding:'7px 14px', borderRadius:10, background:selectMode?C.bg:'#FEE2E2', color:selectMode?C.textMuted:'#DC2626', fontSize:12, fontWeight:700, border:'none', cursor:'pointer', flexShrink:0 }}>
+            {selectMode ? 'キャンセル' : '一括消去'}
+          </button>
         </div>
 
         <div style={{ display:'flex', gap:6, marginBottom:16, overflowX:'auto', paddingBottom:4 }}>
@@ -1032,6 +1053,18 @@ function HistoryScreen({ go }) {
             <button key={v} onClick={()=>setFilter(v)} style={{ background:filter===v?C.primary:'white', color:filter===v?'white':C.textMuted, borderRadius:999, padding:'7px 16px', fontSize:11, fontWeight:filter===v?700:500, whiteSpace:'nowrap', flexShrink:0, boxShadow:'0 1px 4px rgba(0,0,0,0.06)', border:'none', cursor:'pointer' }}>{l}</button>
           ))}
         </div>
+
+        {selectMode && (
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, padding:'0 4px' }}>
+            <button onClick={toggleAllBulk} style={{ display:'flex', alignItems:'center', gap:8, background:'none', border:'none', cursor:'pointer', padding:0 }}>
+              <div style={{ width:20, height:20, borderRadius:5, border:`2px solid ${allBulkSel?C.primary:C.border}`, background:allBulkSel?C.primary:'white', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                {allBulkSel && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </div>
+              <span style={{ fontSize:13, fontWeight:600, color:C.text }}>全選択</span>
+            </button>
+            <span style={{ fontSize:12, color:C.textMuted }}>{bulkSel.size}件 / {filtered.length}件</span>
+          </div>
+        )}
 
         {groups.length === 0 ? (
           <div style={{ textAlign:'center', padding:'60px 0', color:C.textFaint, fontSize:13 }}>記録がありません</div>
@@ -1047,24 +1080,42 @@ function HistoryScreen({ go }) {
                   {exp>0&&<span>-¥{fmt(exp)}</span>}
                 </div>
               </div>
-              {items.map(t => (
-                <button key={t.id} onClick={()=>setEditTxn(t)} style={{ width:'100%', background:'white', borderRadius:13, padding:'11px 14px', display:'flex', alignItems:'center', gap:10, marginBottom:6, boxShadow:'0 1px 4px rgba(0,0,0,0.04)', textAlign:'left', border:'none', cursor:'pointer' }}>
-                  <span style={{ fontSize:18 }}>{t.type==='income'?'💰':(CAT_EMOJI[t.category]||'📋')}</span>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:13, fontWeight:600, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.memo||t.source||t.category}</div>
-                    <div style={{ fontSize:10, color:C.textMuted, marginTop:1 }}>{t.date} · {t.type==='income'?'収入':(t.division||t.category)}</div>
-                    {t.payment && <div style={{ marginTop:3 }}><CardBadge name={t.payment} /></div>}
-                  </div>
-                  <div style={{ fontSize:13, fontWeight:700, color:t.type==='income'?C.primary:C.text, fontFeatureSettings:tnum, flexShrink:0 }}>
-                    {t.type==='income'?'+':'-'}¥{fmt(t.amount)}
-                  </div>
-                </button>
-              ))}
+              {items.map(t => {
+                const sel = bulkSel.has(t.id);
+                return (
+                  <button key={t.id} onClick={() => selectMode ? toggleBulk(t.id) : setEditTxn(t)} style={{ width:'100%', background:sel?C.primaryLight:'white', borderRadius:13, padding:'11px 14px', display:'flex', alignItems:'center', gap:10, marginBottom:6, boxShadow:'0 1px 4px rgba(0,0,0,0.04)', textAlign:'left', border:`1.5px solid ${sel?C.primary:'transparent'}`, cursor:'pointer' }}>
+                    {selectMode && (
+                      <div style={{ width:20, height:20, borderRadius:5, border:`2px solid ${sel?C.primary:C.border}`, background:sel?C.primary:'white', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        {sel && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                      </div>
+                    )}
+                    {!selectMode && <span style={{ fontSize:18 }}>{t.type==='income'?'💰':(CAT_EMOJI[t.category]||'📋')}</span>}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.memo||t.source||t.category}</div>
+                      <div style={{ fontSize:10, color:C.textMuted, marginTop:1 }}>{t.date} · {t.type==='income'?'収入':(t.division||t.category)}</div>
+                      {t.payment && <div style={{ marginTop:3 }}><CardBadge name={t.payment} /></div>}
+                    </div>
+                    <div style={{ fontSize:13, fontWeight:700, color:t.type==='income'?C.primary:C.text, fontFeatureSettings:tnum, flexShrink:0 }}>
+                      {t.type==='income'?'+':'-'}¥{fmt(t.amount)}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           );
         })}
       </div>
-      <BottomNav active="home" go={go} />
+
+      {selectMode ? (
+        <div style={{ padding:'12px 20px 16px', flexShrink:0, background:'white', borderTop:`1px solid ${C.bgCard}` }}>
+          <button onClick={bulkDelete} style={{ width:'100%', background:bulkSel.size>0?'#DC2626':C.border, color:'white', borderRadius:16, padding:'16px', fontSize:15, fontWeight:700, border:'none', cursor:bulkSel.size>0?'pointer':'default', boxShadow:bulkSel.size>0?'0 6px 20px rgba(220,38,38,0.3)':'none' }}>
+            {bulkSel.size > 0 ? `${bulkSel.size}件を削除する` : '削除する記録を選んでください'}
+          </button>
+        </div>
+      ) : (
+        <BottomNav active="home" go={go} />
+      )}
+
       {editTxn && (
         <TxnEditModal
           txn={editTxn}
@@ -2951,7 +3002,7 @@ function rawAmt(str) {
 }
 
 function rowToTxn(row, headers, fmt, autoClassOn, idx) {
-  let date = TODAY, desc = '', amount = 0;
+  let date = TODAY, desc = '', amount = 0, payment = 'カード';
   const hi = k => headers.findIndex(h => h.includes(k));
 
   if (fmt === 'bank-stmt') {
@@ -2964,13 +3015,14 @@ function rowToTxn(row, headers, fmt, autoClassOn, idx) {
     else if (dep > 0) { amount = dep; return { tempId:idx, date, memo:desc, category: autoClassOn ? guessCategory(desc) : 'その他', amount, type:'income', division:'事業収入', payment:'振込' }; }
     else return null;
   } else if (fmt === 'vpass-monthly') {
-    // 6月形式: date,store,totalAmt,payType,count,todayAmt,foreignInfo
+    // 6月形式: date,store,totalAmt,payType,count,todayAmt,foreignInfo[,cardName]
     if (!/^\d{4}\/\d{1,2}\/\d{1,2}$/.test((row[0] || '').trim())) return null;
     date   = normalizeDate(row[0]);
     desc   = row[1] || '';
     const monthly = normalizeAmount(row[5]);
     const total   = normalizeAmount(row[2]);
     amount = monthly > 0 ? monthly : total;
+    if (row[7]) payment = row[7];
   } else if (fmt === 'vpass-noheader') {
     // 7月形式: date,store,国,支払区分,...,金額,...
     date   = normalizeDate(row[0]);
@@ -3007,7 +3059,7 @@ function rowToTxn(row, headers, fmt, autoClassOn, idx) {
     tempId: idx,
     date, memo: desc,
     category: autoClassOn ? guessCategory(desc) : 'その他',
-    amount, type: 'expense', division: '生活費', payment: 'カード',
+    amount, type: 'expense', division: fmt === 'paypay' ? '事業費' : '生活費', payment,
   };
 }
 
@@ -3019,9 +3071,15 @@ function CsvImportScreen({ go }) {
   const [selected, setSelected] = useState(new Set());
   const [editIdx, setEditIdx]   = useState(null);
   const [toast, setToast]       = useState('');
+  const [cardFilter, setCardFilter] = useState('all');
 
+  const cardNames = [...new Set(preview.map(r => r.payment || 'カード'))];
+  const showCardFilter = cardNames.length > 1;
+  const visibleIdxs = cardFilter === 'all'
+    ? preview.map((_, i) => i)
+    : preview.map((r, i) => (r.payment || 'カード') === cardFilter ? i : null).filter(x => x !== null);
+  const allVisible = visibleIdxs.length > 0 && visibleIdxs.every(i => selected.has(i));
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 2500); };
-  const allSelected = preview.length > 0 && preview.every((_, i) => selected.has(i));
 
   const handleFile = e => {
     const file = e.target.files[0];
@@ -3035,7 +3093,21 @@ function CsvImportScreen({ go }) {
         const { fmt: detected, headerIdx } = detectFormat(rows);
         const useFmt = fmt === 'auto' ? detected : fmt;
         const headers = headerIdx >= 0 ? rows[headerIdx] : [];
-        const dataRows = headerIdx >= 0 ? rows.slice(headerIdx + 1) : rows;
+        let dataRows = headerIdx >= 0 ? rows.slice(headerIdx + 1) : rows;
+        // For vpass-monthly: tag each date row with card name from section headers
+        if (useFmt === 'vpass-monthly') {
+          let card = 'カード';
+          const enriched = [];
+          for (const row of dataRows) {
+            if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test((row[0]||'').trim())) {
+              enriched.push([...row, card]);
+            } else if (row.some(Boolean)) {
+              const c = (row[1] || '').trim();
+              if (c) card = c;
+            }
+          }
+          dataRows = enriched;
+        }
         const txns = dataRows
           .map((r, i) => rowToTxn(r, headers, useFmt, autoClass, i))
           .filter(Boolean);
@@ -3076,7 +3148,10 @@ function CsvImportScreen({ go }) {
   };
 
   const toggleAll = () => {
-    setSelected(allSelected ? new Set() : new Set(preview.map((_, i) => i)));
+    const next = new Set(selected);
+    if (allVisible) visibleIdxs.forEach(i => next.delete(i));
+    else visibleIdxs.forEach(i => next.add(i));
+    setSelected(next);
   };
 
   const toggle = i => {
@@ -3166,19 +3241,31 @@ function CsvImportScreen({ go }) {
             </div>
           </div>
         </>) : (<>
+          {/* Card filter chips */}
+          {showCardFilter && (
+            <div style={{ display:'flex', gap:6, marginBottom:10, flexWrap:'wrap' }}>
+              {['all', ...cardNames].map(c => (
+                <button key={c} type="button" onClick={() => setCardFilter(c)} style={{ background:cardFilter===c?C.primary:'white', color:cardFilter===c?'white':C.textMuted, borderRadius:999, padding:'5px 12px', fontSize:11, fontWeight:cardFilter===c?700:500, border:`1.5px solid ${cardFilter===c?C.primary:C.border}`, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
+                  {c === 'all' ? `すべて（${preview.length}件）` : c}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Select all */}
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
             <button type="button" onClick={toggleAll} style={{ display:'flex', alignItems:'center', gap:8, background:'none', border:'none', cursor:'pointer', padding:0 }}>
-              <div style={{ width:22, height:22, borderRadius:6, border:`2px solid ${allSelected ? C.primary : C.border}`, background:allSelected ? C.primary : 'white', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                {allSelected && <svg width="12" height="10" viewBox="0 0 12 10" fill="none"><path d="M1 5l3.5 3.5L11 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              <div style={{ width:22, height:22, borderRadius:6, border:`2px solid ${allVisible ? C.primary : C.border}`, background:allVisible ? C.primary : 'white', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                {allVisible && <svg width="12" height="10" viewBox="0 0 12 10" fill="none"><path d="M1 5l3.5 3.5L11 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
               </div>
               <span style={{ fontSize:13, fontWeight:600, color:C.text }}>すべて選択</span>
             </button>
-            <span style={{ fontSize:12, color:C.textMuted }}>{selected.size}件選択 / {preview.length}件</span>
+            <span style={{ fontSize:12, color:C.textMuted }}>{visibleIdxs.filter(i=>selected.has(i)).length}件選択 / {visibleIdxs.length}件</span>
           </div>
 
           {/* Preview list */}
           {preview.map((row, i) => {
+            if (cardFilter !== 'all' && (row.payment || 'カード') !== cardFilter) return null;
             const checked = selected.has(i);
             const isEditing = editIdx === i;
             const catObj = EXPENSE_CATS.find(c => c.name === row.category);

@@ -378,7 +378,7 @@ function detectCSVFormat(rows) {
 }
 function csvRowToTxn(row, headers, fmt, autoClassOn, idx) {
   const hi = k => (headers||[]).findIndex(h=>h.includes(k));
-  let date=TODAY, desc='', amount=0;
+  let date=TODAY, desc='', amount=0, payment='カード';
   if (fmt==='bank-stmt') {
     date=normDate(`${row[0]}/${row[1]}/${row[2]}`); desc=row[7]||'';
     const pay=normAmt(row[8]); const dep=normAmt(row[9]);
@@ -390,6 +390,7 @@ function csvRowToTxn(row, headers, fmt, autoClassOn, idx) {
     date=normDate(row[0]); desc=row[1]||'';
     const monthly=normAmt(row[5]); const total=normAmt(row[2]);
     amount=monthly>0?monthly:total;
+    if(row[7]) payment=row[7];
   } else if (fmt==='vpass-noheader') {
     date=normDate(row[0]); desc=row[1]||'';
     const a=rawAmt(row[6]); if(a<=0) return null; amount=a;
@@ -409,7 +410,7 @@ function csvRowToTxn(row, headers, fmt, autoClassOn, idx) {
     date=normDate(row[dc]); desc=nc>=0?row[nc]:row[1]||''; amount=ac>=0?normAmt(row[ac]):0;
   }
   if (!amount||amount<=0) return null;
-  return { tempId:idx, date, memo:desc, category:autoClassOn?guessCategory(desc):'その他', amount, type:'expense', division:'生活費', payment:'カード' };
+  return { tempId:idx, date, memo:desc, category:autoClassOn?guessCategory(desc):'その他', amount, type:'expense', division:fmt==='paypay'?'事業費':'生活費', payment };
 }
 
 function CsvImportPanel({ onImported }) {
@@ -420,9 +421,15 @@ function CsvImportPanel({ onImported }) {
   const [selected, setSelected] = useState(new Set());
   const [editIdx, setEditIdx]   = useState(null);
   const [toast, setToast]       = useState('');
+  const [cardFilter, setCardFilter] = useState('all');
 
+  const cardNames = [...new Set(preview.map(r => r.payment || 'カード'))];
+  const showCardFilter = cardNames.length > 1;
+  const visibleIdxs = cardFilter === 'all'
+    ? preview.map((_,i) => i)
+    : preview.map((r,i) => (r.payment||'カード') === cardFilter ? i : null).filter(x => x !== null);
+  const allVisible = visibleIdxs.length > 0 && visibleIdxs.every(i => selected.has(i));
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 2500); };
-  const allSelected = preview.length > 0 && preview.every((_,i) => selected.has(i));
 
   const handleFile = e => {
     const file = e.target.files[0]; if (!file) return;
@@ -435,7 +442,20 @@ function CsvImportPanel({ onImported }) {
         const { fmt: det, headerIdx } = detectCSVFormat(rows);
         const useFmt = csvFmt==='auto' ? det : csvFmt;
         const headers = headerIdx >= 0 ? rows[headerIdx] : [];
-        const dataRows = headerIdx >= 0 ? rows.slice(headerIdx+1) : rows;
+        let dataRows = headerIdx >= 0 ? rows.slice(headerIdx+1) : rows;
+        if (useFmt === 'vpass-monthly') {
+          let card = 'カード';
+          const enriched = [];
+          for (const row of dataRows) {
+            if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test((row[0]||'').trim())) {
+              enriched.push([...row, card]);
+            } else if (row.some(Boolean)) {
+              const c = (row[1]||'').trim();
+              if (c) card = c;
+            }
+          }
+          dataRows = enriched;
+        }
         const txns = dataRows.map((r,i)=>csvRowToTxn(r,headers,useFmt,autoClass,i)).filter(Boolean);
         if (!txns.length) return false;
         setPreview(txns); setSelected(new Set(txns.map((_,i)=>i))); setStep('preview');
@@ -459,6 +479,7 @@ function CsvImportPanel({ onImported }) {
   };
 
   const toggle = i => { const n=new Set(selected); n.has(i)?n.delete(i):n.add(i); setSelected(n); };
+  const toggleAll = () => { const n=new Set(selected); if(allVisible) visibleIdxs.forEach(i=>n.delete(i)); else visibleIdxs.forEach(i=>n.add(i)); setSelected(n); };
   const updateRow = (i,u) => setPreview(p=>p.map((r,j)=>j===i?{...r,...u}:r));
 
   const importAll = () => {
@@ -509,17 +530,27 @@ function CsvImportPanel({ onImported }) {
   return (
     <div>
       {toast && <div style={{ background:'#D1FAE5', color:'#065F46', borderRadius:10, padding:'10px 16px', marginBottom:16, fontSize:13, fontWeight:600 }}>{toast}</div>}
+      {showCardFilter && (
+        <div style={{ display:'flex', gap:6, marginBottom:10, flexWrap:'wrap' }}>
+          {['all', ...cardNames].map(c => (
+            <button key={c} onClick={()=>setCardFilter(c)} style={{ background:cardFilter===c?C.primary:'white', color:cardFilter===c?'white':C.textMuted, borderRadius:999, padding:'5px 12px', fontSize:11, fontWeight:cardFilter===c?700:500, border:`1.5px solid ${cardFilter===c?C.primary:C.border}`, cursor:'pointer', whiteSpace:'nowrap' }}>
+              {c==='all'?`すべて（${preview.length}件）`:c}
+            </button>
+          ))}
+        </div>
+      )}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-        <button onClick={()=>{ const n=allSelected?new Set():new Set(preview.map((_,i)=>i)); setSelected(n); }} style={{ display:'flex', alignItems:'center', gap:8, background:'none', border:'none', cursor:'pointer', padding:0 }}>
-          <div style={{ width:20,height:20,borderRadius:5,border:`2px solid ${allSelected?C.primary:C.border}`,background:allSelected?C.primary:'white',display:'flex',alignItems:'center',justifyContent:'center' }}>
-            {allSelected && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+        <button onClick={toggleAll} style={{ display:'flex', alignItems:'center', gap:8, background:'none', border:'none', cursor:'pointer', padding:0 }}>
+          <div style={{ width:20,height:20,borderRadius:5,border:`2px solid ${allVisible?C.primary:C.border}`,background:allVisible?C.primary:'white',display:'flex',alignItems:'center',justifyContent:'center' }}>
+            {allVisible && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
           </div>
           <span style={{ fontSize:13, fontWeight:600, color:C.text }}>すべて選択</span>
         </button>
-        <span style={{ fontSize:12, color:C.textMuted }}>{selected.size}件選択 / {preview.length}件</span>
+        <span style={{ fontSize:12, color:C.textMuted }}>{visibleIdxs.filter(i=>selected.has(i)).length}件選択 / {visibleIdxs.length}件</span>
       </div>
       <div style={{ maxHeight:340, overflowY:'auto', marginBottom:14 }}>
         {preview.map((row,i) => {
+          if(cardFilter!=='all' && (row.payment||'カード')!==cardFilter) return null;
           const checked=selected.has(i), isEdit=editIdx===i;
           const catObj=EXPENSE_CATS.find(c=>c.name===row.category);
           return (
@@ -2727,6 +2758,8 @@ function HistoryScreen({ go }) {
   const [filter, setFilter] = useState('all');
   const [editTxn, setEditTxn] = useState(null);
   const [q, setQ] = useState('');
+  const [selectMode, setSelectMode] = useState(false);
+  const [bulkSel, setBulkSel] = useState(new Set());
 
   const list = all
     .filter(t => filter === 'all' ? true : filter === 'income' ? t.type === 'income' : t.division === filter)
@@ -2740,6 +2773,22 @@ function HistoryScreen({ go }) {
     else last.items.push(t);
   });
 
+  const allBulkSel = list.length > 0 && list.every(t => bulkSel.has(t.id));
+  const toggleAllBulk = () => {
+    if (allBulkSel) setBulkSel(new Set());
+    else setBulkSel(new Set(list.map(t => t.id)));
+  };
+  const toggleBulk = id => {
+    const next = new Set(bulkSel);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setBulkSel(next);
+  };
+  const bulkDelete = () => {
+    if (!bulkSel.size) return;
+    const next = all.filter(t => !bulkSel.has(t.id));
+    setAll(next); Store.set('transactions', next);
+    setBulkSel(new Set()); setSelectMode(false);
+  };
   const handleSave = u => {
     const next = all.map(t => t.id === u.id ? u : t);
     setAll(next); Store.set('transactions', next); setEditTxn(null);
@@ -2750,15 +2799,33 @@ function HistoryScreen({ go }) {
   };
 
   return (
-    <Shell active="history" go={go} title="記録一覧" subtitle={`全${all.length}件 · クリックで編集`}>
-      <div style={{ display:'flex', gap:12, marginBottom:20, flexWrap:'wrap', alignItems:'center' }}>
+    <Shell active="history" go={go} title="記録一覧" subtitle={selectMode ? `${bulkSel.size}件選択中` : `全${all.length}件 · クリックで編集`}>
+      <div style={{ display:'flex', gap:12, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="店名・カテゴリで検索..." style={{ flex:'1 1 200px', padding:'9px 14px', borderRadius:10, border:`1.5px solid ${C.border}`, fontSize:13, background:'white', outline:'none' }} />
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
           {[['all','すべて'],['income','収入'],['生活費','生活費'],['事業費','事業費'],['税金','税金'],['投資','投資']].map(([v,l]) => (
             <button key={v} onClick={()=>setFilter(v)} style={{ background:filter===v?C.primary:'white', color:filter===v?'white':C.textMuted, borderRadius:999, padding:'7px 16px', fontSize:12, fontWeight:filter===v?700:500, border:`1.5px solid ${filter===v?C.primary:C.border}`, cursor:'pointer', whiteSpace:'nowrap' }}>{l}</button>
           ))}
         </div>
+        <button onClick={() => { setSelectMode(v=>!v); setBulkSel(new Set()); }} style={{ padding:'8px 16px', borderRadius:10, background:selectMode?C.bg:'#FEE2E2', color:selectMode?C.textMuted:'#DC2626', fontSize:13, fontWeight:700, border:'none', cursor:'pointer', whiteSpace:'nowrap' }}>
+          {selectMode ? 'キャンセル' : '一括消去'}
+        </button>
       </div>
+
+      {selectMode && (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, padding:'10px 16px', background:'#FEF2F2', borderRadius:12 }}>
+          <button onClick={toggleAllBulk} style={{ display:'flex', alignItems:'center', gap:8, background:'none', border:'none', cursor:'pointer', padding:0 }}>
+            <div style={{ width:20,height:20,borderRadius:5,border:`2px solid ${allBulkSel?C.primary:C.border}`,background:allBulkSel?C.primary:'white',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+              {allBulkSel && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            </div>
+            <span style={{ fontSize:13, fontWeight:600, color:C.text }}>全選択</span>
+          </button>
+          <span style={{ fontSize:12, color:C.textMuted }}>{bulkSel.size}件選択 / {list.length}件</span>
+          <button onClick={bulkDelete} style={{ padding:'8px 20px', borderRadius:10, background:bulkSel.size>0?'#DC2626':C.border, color:'white', fontSize:13, fontWeight:700, border:'none', cursor:bulkSel.size>0?'pointer':'default' }}>
+            {bulkSel.size > 0 ? `${bulkSel.size}件を削除` : '選択してください'}
+          </button>
+        </div>
+      )}
 
       {groups.length === 0 ? (
         <Card><div style={{ textAlign:'center', padding:'40px 0', color:C.textFaint, fontSize:14 }}>記録がありません</div></Card>
@@ -2775,18 +2842,26 @@ function HistoryScreen({ go }) {
               </div>
             </div>
             <Card style={{ padding:0, overflow:'hidden' }}>
-              {items.map((t,i) => (
-                <div key={t.id} onClick={()=>setEditTxn(t)} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', borderBottom:i<items.length-1?`1px solid ${C.bgCard}`:'none', cursor:'pointer', background:'white' }} onMouseEnter={e=>e.currentTarget.style.background=C.bg} onMouseLeave={e=>e.currentTarget.style.background='white'}>
-                  <span style={{ fontSize:20, flexShrink:0 }}>{t.type==='income'?'💰':(CAT_EMOJI[t.category]||'📋')}</span>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:13, fontWeight:600, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.memo||t.source||t.category}</div>
-                    <div style={{ fontSize:11, color:C.textMuted, marginTop:2 }}>{t.date} · {t.type==='income'?'収入':(t.division||t.category)}{t.payment?` · ${t.payment}`:''}</div>
+              {items.map((t,i) => {
+                const sel = bulkSel.has(t.id);
+                return (
+                  <div key={t.id} onClick={() => selectMode ? toggleBulk(t.id) : setEditTxn(t)} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', borderBottom:i<items.length-1?`1px solid ${C.bgCard}`:'none', cursor:'pointer', background:sel?C.primaryLight:'white', transition:'background 0.1s' }} onMouseEnter={e=>{if(!sel)e.currentTarget.style.background=C.bg;}} onMouseLeave={e=>{if(!sel)e.currentTarget.style.background='white';}}>
+                    {selectMode && (
+                      <div style={{ width:20,height:20,borderRadius:5,border:`2px solid ${sel?C.primary:C.border}`,background:sel?C.primary:'white',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+                        {sel && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                      </div>
+                    )}
+                    {!selectMode && <span style={{ fontSize:20, flexShrink:0 }}>{t.type==='income'?'💰':(CAT_EMOJI[t.category]||'📋')}</span>}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.memo||t.source||t.category}</div>
+                      <div style={{ fontSize:11, color:C.textMuted, marginTop:2 }}>{t.date} · {t.type==='income'?'収入':(t.division||t.category)}{t.payment?` · ${t.payment}`:''}</div>
+                    </div>
+                    <div style={{ fontSize:14, fontWeight:700, color:t.type==='income'?C.primary:C.text, fontFeatureSettings:tnum, flexShrink:0 }}>
+                      {t.type==='income'?'+':'-'}¥{fmt(t.amount)}
+                    </div>
                   </div>
-                  <div style={{ fontSize:14, fontWeight:700, color:t.type==='income'?C.primary:C.text, fontFeatureSettings:tnum, flexShrink:0 }}>
-                    {t.type==='income'?'+':'-'}¥{fmt(t.amount)}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </Card>
           </div>
         );
