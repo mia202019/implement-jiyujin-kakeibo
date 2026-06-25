@@ -1848,7 +1848,7 @@ function ReportScreen({ go }) {
 
   const summary = [
     { label:'収入',   value:`¥${fmt(thisInc)}`, color: C.primary, sub:'今月確定' },
-    { label:'支出',   value:`¥${fmt(thisExp)}`, color: C.text,    sub:'今月合計' },
+    { label:'支出',   value:`¥${fmt(thisExp)}`, color: '#F472B6', sub:'今月合計' },
     { label:'貯蓄率', value:`${savingsRate}%`,  color: C.invest,  sub:'税引き前' },
   ];
 
@@ -1874,7 +1874,7 @@ function ReportScreen({ go }) {
           <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>6ヶ月の収支推移</div>
           <div style={{ display: 'flex', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 11, height: 11, borderRadius: 3, background: C.primary }} /><span style={{ fontSize: 12, color: C.textMuted }}>収入</span></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 11, height: 11, borderRadius: 3, background: C.info }} /><span style={{ fontSize: 12, color: C.textMuted }}>支出</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 11, height: 11, borderRadius: 3, background: '#F472B6' }} /><span style={{ fontSize: 12, color: C.textMuted }}>支出</span></div>
           </div>
         </div>
         <svg viewBox="0 0 348 150" style={{ width: '100%', maxHeight: 260, overflow: 'visible' }}>
@@ -1885,7 +1885,7 @@ function ReportScreen({ go }) {
             return (
               <g key={d.label}>
                 <rect x={i*58+6}  y={110-ih} width="20" height={ih} rx="4" fill={C.primary} opacity={d.isCurrent ? 1 : 0.7}/>
-                <rect x={i*58+29} y={110-eh} width="20" height={eh} rx="4" fill={C.info}    opacity={d.isCurrent ? 1 : 0.7}/>
+                <rect x={i*58+29} y={110-eh} width="20" height={eh} rx="4" fill={'#F472B6'} opacity={d.isCurrent ? 1 : 0.7}/>
                 <text x={i*58+24} y="128" textAnchor="middle" fontSize="10" fill={d.isCurrent ? C.text : C.textFaint} fontWeight={d.isCurrent ? '700' : '400'} fontFamily="sans-serif">{d.label}</text>
               </g>
             );
@@ -1901,27 +1901,48 @@ function ReportScreen({ go }) {
           </div>
           {ranking.length === 0 ? (
             <div style={{ textAlign:'center', padding:'24px 0', color:C.textFaint, fontSize:13 }}>まだ支出がありません</div>
-          ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px 28px' }}>
-              {ranking.map((r, idx) => {
-                const barColors = ['#097D60','#6366f1','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#14b8a6','#f97316','#84cc16'];
-                const col = barColors[idx % barColors.length];
-                return (
-                  <div key={r.name}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
-                      <span style={{ fontSize:20, flexShrink:0 }}>{r.emoji}</span>
-                      <span style={{ flex:1, fontSize:13, fontWeight:600, color:C.text }}>{r.name}</span>
-                      <span style={{ fontSize:12, color:C.textMuted, flexShrink:0 }}>{r.pct}%</span>
-                      <span style={{ fontSize:14, fontWeight:700, color:C.text, fontFeatureSettings:tnum, flexShrink:0 }}>¥{fmt(r.amt)}</span>
+          ) : (() => {
+            const barColors = ['#097D60','#6366f1','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#14b8a6','#f97316','#84cc16'];
+            const PS = 160, pcx = 80, pcy = 80, PR = 74, pr = 46;
+            let ang = -Math.PI / 2;
+            const segs = ranking.map((item, i) => {
+              const sw = (item.amt / catTotal) * 2 * Math.PI;
+              const s = ang; ang += sw;
+              const color = barColors[i % barColors.length];
+              const x1=pcx+PR*Math.cos(s), y1=pcy+PR*Math.sin(s);
+              const x2=pcx+PR*Math.cos(s+sw), y2=pcy+PR*Math.sin(s+sw);
+              const ix1=pcx+pr*Math.cos(s+sw), iy1=pcy+pr*Math.sin(s+sw);
+              const ix2=pcx+pr*Math.cos(s), iy2=pcy+pr*Math.sin(s);
+              const lg = sw > Math.PI ? 1 : 0;
+              const dp = `M${x1.toFixed(1)},${y1.toFixed(1)} A${PR},${PR},0,${lg},1,${x2.toFixed(1)},${y2.toFixed(1)} L${ix1.toFixed(1)},${iy1.toFixed(1)} A${pr},${pr},0,${lg},0,${ix2.toFixed(1)},${iy2.toFixed(1)} Z`;
+              return { ...item, color, dp };
+            });
+            return (
+              <div style={{ display:'flex', gap:28, alignItems:'center' }}>
+                <svg width={PS} height={PS} viewBox={`0 0 ${PS} ${PS}`} style={{ flexShrink:0 }}>
+                  {segs.map((seg, i) => <path key={i} d={seg.dp} fill={seg.color} stroke="white" strokeWidth="2"/>)}
+                  <text x={pcx} y={pcy-6} textAnchor="middle" fontSize="13" fontWeight="700" fill={C.text} fontFamily="sans-serif">支出</text>
+                  <text x={pcx} y={pcy+10} textAnchor="middle" fontSize="11" fill={C.textMuted} fontFamily="sans-serif">¥{fmt(catTotal)}</text>
+                </svg>
+                <div style={{ flex:1, display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px 24px' }}>
+                  {segs.map((r, idx) => (
+                    <div key={r.name}>
+                      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
+                        <div style={{ width:10, height:10, borderRadius:2, background:r.color, flexShrink:0 }}/>
+                        <span style={{ fontSize:18, flexShrink:0 }}>{r.emoji}</span>
+                        <span style={{ flex:1, fontSize:13, fontWeight:600, color:C.text }}>{r.name}</span>
+                        <span style={{ fontSize:12, color:C.textMuted, flexShrink:0 }}>{r.pct}%</span>
+                        <span style={{ fontSize:14, fontWeight:700, color:C.text, fontFeatureSettings:tnum, flexShrink:0 }}>¥{fmt(r.amt)}</span>
+                      </div>
+                      <div style={{ height:7, background:C.bgCard, borderRadius:4 }}>
+                        <div style={{ height:'100%', width:`${r.pct}%`, background:r.color, borderRadius:4, transition:'width 0.4s' }}/>
+                      </div>
                     </div>
-                    <div style={{ height:7, background:C.bgCard, borderRadius:4 }}>
-                      <div style={{ height:'100%', width:`${r.pct}%`, background:col, borderRadius:4, transition:'width 0.4s' }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </Card>
         <Card>
           <SectionTitle>前月比較</SectionTitle>
@@ -1943,7 +1964,7 @@ function ReportScreen({ go }) {
           <div style={{ display: 'flex', gap: 14 }}>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600 }}>毎月</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: C.info, fontFeatureSettings: tnum }}>¥{fmt(fixedMonthly)}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#F472B6', fontFeatureSettings: tnum }}>¥{fmt(fixedMonthly)}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600 }}>年間一括</div>

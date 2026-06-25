@@ -1887,7 +1887,7 @@ function ReportScreen({ go }) {
           <div style={{ display:'flex', gap:10, marginBottom:16 }}>
             {[
               { label:'収入', val:thisInc, color:C.primary },
-              { label:'支出', val:thisExp, color:C.info },
+              { label:'支出', val:thisExp, color:'#F472B6' },
               { label:'収支', val:thisBalance, color:thisBalance>=0?C.primary:C.warning },
             ].map(s => (
               <div key={s.label} style={{ flex:1, background:C.bg, borderRadius:12, padding:'12px 14px' }}>
@@ -1899,7 +1899,7 @@ function ReportScreen({ go }) {
             ))}
           </div>
           <div style={{ display:'flex', gap:8 }}>
-            {[['生活費', lifeExp, C.info], ['事業費', bizExp, C.primary]].map(([l,v,c]) => (
+            {[['生活費', lifeExp, '#F472B6'], ['事業費', bizExp, C.primary]].map(([l,v,c]) => (
               <div key={l} style={{ flex:1, display:'flex', justifyContent:'space-between', alignItems:'center', background:c+'12', borderRadius:10, padding:'10px 14px' }}>
                 <span style={{ fontSize:12, fontWeight:600, color:c }}>{l}</span>
                 <span style={{ fontSize:13, fontWeight:700, color:c, fontFeatureSettings:"'tnum'" }}>¥{fmt(v)}</span>
@@ -1913,7 +1913,7 @@ function ReportScreen({ go }) {
           <div style={{ fontSize:13, fontWeight:700, color:C.text, marginBottom:4 }}>6ヶ月の収支推移</div>
           <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:14 }}>
             <div style={{ display:'flex', alignItems:'center', gap:5 }}><div style={{ width:9,height:9,borderRadius:2,background:C.primary }}/><span style={{ fontSize:10,color:C.textMuted }}>収入</span></div>
-            <div style={{ display:'flex', alignItems:'center', gap:5 }}><div style={{ width:9,height:9,borderRadius:2,background:C.info }}/><span style={{ fontSize:10,color:C.textMuted }}>支出</span></div>
+            <div style={{ display:'flex', alignItems:'center', gap:5 }}><div style={{ width:9,height:9,borderRadius:2,background:'#F472B6' }}/><span style={{ fontSize:10,color:C.textMuted }}>支出</span></div>
           </div>
           <svg viewBox="0 0 348 130" style={{ width:'100%', overflow:'visible' }}>
             <line x1="0" y1="100" x2="348" y2="100" stroke={C.border} strokeWidth="1.2"/>
@@ -1923,7 +1923,7 @@ function ReportScreen({ go }) {
               return (
                 <g key={d.label}>
                   <rect x={i*58+6}  y={100-ih} width="20" height={ih} rx="3" fill={C.primary} opacity={d.isCurrent?1:0.6}/>
-                  <rect x={i*58+28} y={100-eh} width="20" height={eh} rx="3" fill={C.info}    opacity={d.isCurrent?1:0.6}/>
+                  <rect x={i*58+28} y={100-eh} width="20" height={eh} rx="3" fill={'#F472B6'} opacity={d.isCurrent?1:0.6}/>
                   <text x={i*58+24} y="118" textAnchor="middle" fontSize="10" fill={d.isCurrent?C.text:C.textFaint} fontWeight={d.isCurrent?'700':'400'} fontFamily="sans-serif">{d.label}</text>
                 </g>
               );
@@ -1939,23 +1939,48 @@ function ReportScreen({ go }) {
           </div>
           {ranking.length === 0 ? (
             <div style={{ textAlign:'center', padding:'16px 0', color:C.textFaint, fontSize:13 }}>まだ支出がありません</div>
-          ) : ranking.map((r, idx) => {
+          ) : (() => {
             const barColors = ['#097D60','#6366f1','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#14b8a6','#f97316','#84cc16'];
-            const col = barColors[idx % barColors.length];
+            const PS = 150, pcx = 75, pcy = 75, PR = 69, pr = 43;
+            let ang = -Math.PI / 2;
+            const segs = ranking.map((item, i) => {
+              const sw = (item.amt / catTotal) * 2 * Math.PI;
+              const s = ang; ang += sw;
+              const color = barColors[i % barColors.length];
+              const x1=pcx+PR*Math.cos(s), y1=pcy+PR*Math.sin(s);
+              const x2=pcx+PR*Math.cos(s+sw), y2=pcy+PR*Math.sin(s+sw);
+              const ix1=pcx+pr*Math.cos(s+sw), iy1=pcy+pr*Math.sin(s+sw);
+              const ix2=pcx+pr*Math.cos(s), iy2=pcy+pr*Math.sin(s);
+              const lg = sw > Math.PI ? 1 : 0;
+              const dp = `M${x1.toFixed(1)},${y1.toFixed(1)} A${PR},${PR},0,${lg},1,${x2.toFixed(1)},${y2.toFixed(1)} L${ix1.toFixed(1)},${iy1.toFixed(1)} A${pr},${pr},0,${lg},0,${ix2.toFixed(1)},${iy2.toFixed(1)} Z`;
+              return { ...item, color, dp };
+            });
             return (
-              <div key={r.name} style={{ marginBottom: idx < ranking.length-1 ? 12 : 0 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
-                  <span style={{ fontSize:18, flexShrink:0 }}>{r.emoji}</span>
-                  <span style={{ flex:1, fontSize:12, fontWeight:600, color:C.text }}>{r.name}</span>
-                  <span style={{ fontSize:11, color:C.textMuted, flexShrink:0 }}>{r.pct}%</span>
-                  <span style={{ fontSize:13, fontWeight:700, color:C.text, fontFeatureSettings:tnum, flexShrink:0 }}>¥{fmt(r.amt)}</span>
+              <div>
+                <div style={{ display:'flex', justifyContent:'center', marginBottom:16 }}>
+                  <svg width={PS} height={PS} viewBox={`0 0 ${PS} ${PS}`}>
+                    {segs.map((seg, i) => <path key={i} d={seg.dp} fill={seg.color} stroke="white" strokeWidth="2"/>)}
+                    <text x={pcx} y={pcy-6} textAnchor="middle" fontSize="12" fontWeight="700" fill={C.text} fontFamily="sans-serif">支出</text>
+                    <text x={pcx} y={pcy+9} textAnchor="middle" fontSize="10" fill={C.textMuted} fontFamily="sans-serif">¥{fmt(catTotal)}</text>
+                  </svg>
                 </div>
-                <div style={{ height:6, background:C.bgCard, borderRadius:4 }}>
-                  <div style={{ height:'100%', width:`${r.pct}%`, background:col, borderRadius:4, transition:'width 0.4s' }} />
-                </div>
+                {segs.map((r, idx) => (
+                  <div key={r.name} style={{ marginBottom: idx < segs.length-1 ? 12 : 0 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
+                      <div style={{ width:10, height:10, borderRadius:2, background:r.color, flexShrink:0 }}/>
+                      <span style={{ fontSize:18, flexShrink:0 }}>{r.emoji}</span>
+                      <span style={{ flex:1, fontSize:12, fontWeight:600, color:C.text }}>{r.name}</span>
+                      <span style={{ fontSize:11, color:C.textMuted, flexShrink:0 }}>{r.pct}%</span>
+                      <span style={{ fontSize:13, fontWeight:700, color:C.text, fontFeatureSettings:tnum, flexShrink:0 }}>¥{fmt(r.amt)}</span>
+                    </div>
+                    <div style={{ height:6, background:C.bgCard, borderRadius:4 }}>
+                      <div style={{ height:'100%', width:`${r.pct}%`, background:r.color, borderRadius:4, transition:'width 0.4s' }}/>
+                    </div>
+                  </div>
+                ))}
               </div>
             );
-          })}
+          })()}
           {thisInc > 0 && (
             <div style={{ marginTop:16, paddingTop:14, borderTop:`1px solid ${C.bgCard}`, display:'flex', justifyContent:'space-between', fontSize:12 }}>
               <span style={{ color:C.textMuted }}>貯蓄率（税引き前）</span>
@@ -1972,7 +1997,7 @@ function ReportScreen({ go }) {
           <div style={{ display:'flex', gap:8, marginBottom:12 }}>
             <div style={{ flex:1, background:C.bg, borderRadius:10, padding:'8px 12px' }}>
               <div style={{ fontSize:10, color:C.textMuted, fontWeight:600 }}>毎月</div>
-              <div style={{ fontSize:15, fontWeight:700, color:C.info, fontFeatureSettings:"'tnum'" }}>¥{fmt(fixedMonthly)}</div>
+              <div style={{ fontSize:15, fontWeight:700, color:'#F472B6', fontFeatureSettings:"'tnum'" }}>¥{fmt(fixedMonthly)}</div>
             </div>
             <div style={{ flex:1, background:C.bg, borderRadius:10, padding:'8px 12px' }}>
               <div style={{ fontSize:10, color:C.textMuted, fontWeight:600 }}>年間一括</div>
