@@ -1524,7 +1524,7 @@ function TaxScreen({ go }) {
   const allTxns = Store.get('transactions', []);
   const history = Array.from({length: 4}, (_, i) => {
     const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    const ym = d.toISOString().slice(0,7);
+    const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     const label = `${d.getMonth()+1}月`;
     const mSaved = allTxns.filter(t => t.date && t.date.startsWith(ym) && t.type==='expense' && t.division==='税金').reduce((s,t)=>s+t.amount,0);
     const mPct = goalAmt > 0 ? Math.min(100, Math.round(mSaved/goalAmt*100)) : 0;
@@ -1808,7 +1808,7 @@ function ReportScreen({ go }) {
   // 6-month trend
   const months = Array.from({length:6}, (_, i) => {
     const d = new Date(today.getFullYear(), today.getMonth()-5+i, 1);
-    const ym = d.toISOString().slice(0,7);
+    const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     const mT = allTxns.filter(t=>t.date&&t.date.startsWith(ym));
     const inc = mT.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
     const exp = mT.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
@@ -2007,7 +2007,7 @@ function BizScreen({ go }) {
   const isBizIncome = t => t.division === '事業収入' || (!t.division && !['給与','アルバイト'].includes(t.source));
   const months = Array.from({length:6}, (_, i) => {
     const d = new Date(today.getFullYear(), today.getMonth()-5+i, 1);
-    const ym = d.toISOString().slice(0,7);
+    const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     const mT = allTxns.filter(t=>t.date&&t.date.startsWith(ym));
     const revenue = mT.filter(t=>t.type==='income'&&isBizIncome(t)).reduce((s,t)=>s+t.amount,0);
     const expenses = mT.filter(t=>t.type==='expense'&&t.division==='事業費').reduce((s,t)=>s+t.amount,0);
@@ -2031,7 +2031,7 @@ function BizScreen({ go }) {
 
   const monthOpts = Array.from({length:12}, (_, i) => {
     const d = new Date(today.getFullYear(), today.getMonth()-11+i, 1);
-    return { ym: d.toISOString().slice(0,7), label: `${d.getFullYear()}年${d.getMonth()+1}月` };
+    return { ym: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`, label: `${d.getFullYear()}年${d.getMonth()+1}月` };
   }).reverse();
 
   return (

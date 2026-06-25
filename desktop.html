@@ -658,7 +658,7 @@ function BusinessScreen({ go }) {
   const isBizIncome = t => t.division === '事業収入' || (!t.division && !['給与','アルバイト'].includes(t.source));
   const months = Array.from({length:6}, (_, i) => {
     const d = new Date(today.getFullYear(), today.getMonth()-5+i, 1);
-    const ym = d.toISOString().slice(0,7);
+    const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     const mT = allTxns.filter(t=>t.date&&t.date.startsWith(ym));
     const revenue = mT.filter(t=>t.type==='income'&&isBizIncome(t)).reduce((s,t)=>s+t.amount,0);
     const expenses = mT.filter(t=>t.type==='expense'&&t.division==='事業費').reduce((s,t)=>s+t.amount,0);
@@ -682,7 +682,7 @@ function BusinessScreen({ go }) {
 
   const monthOpts = Array.from({length:24}, (_, i) => {
     const d = new Date(today.getFullYear(), today.getMonth()-23+i, 1);
-    return { ym: d.toISOString().slice(0,7), label: `${d.getFullYear()}年${d.getMonth()+1}月` };
+    return { ym: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`, label: `${d.getFullYear()}年${d.getMonth()+1}月` };
   }).reverse();
 
   const TAB_COLORS = ['#097D60','#8B5CF6',C.info,C.warning,'#06b6d4'];
@@ -1687,7 +1687,7 @@ function TaxScreen({ go }) {
   const allTxns = Store.get('transactions', []);
   const history = Array.from({length: 4}, (_, i) => {
     const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    const ym = d.toISOString().slice(0,7);
+    const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     const label = `${d.getMonth()+1}月`;
     const mSaved = allTxns.filter(t => t.date && t.date.startsWith(ym) && t.type === 'expense' && t.division === '税金').reduce((s,t) => s+t.amount, 0);
     const mPct = goalAmt > 0 ? Math.min(100, Math.round(mSaved/goalAmt*100)) : 0;
@@ -1792,7 +1792,7 @@ function ReportScreen({ go }) {
   const today = new Date();
   const months = Array.from({length: 6}, (_, i) => {
     const d = new Date(today.getFullYear(), today.getMonth() - 5 + i, 1);
-    const ym = d.toISOString().slice(0,7);
+    const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     const mTxns = allTxns.filter(t => t.date && t.date.startsWith(ym));
     const inc = mTxns.filter(t => t.type === 'income').reduce((s,t) => s+t.amount, 0);
     const exp = mTxns.filter(t => t.type === 'expense').reduce((s,t) => s+t.amount, 0);
@@ -1808,7 +1808,8 @@ function ReportScreen({ go }) {
   const thisExp = currTxns.filter(t => t.type==='expense').reduce((s,t)=>s+t.amount, 0);
   const savingsRate = thisInc > 0 ? ((thisInc - thisExp) / thisInc * 100).toFixed(1) : '0.0';
 
-  const prevYm = new Date(today.getFullYear(), today.getMonth()-1, 1).toISOString().slice(0,7);
+  const prev = new Date(today.getFullYear(), today.getMonth()-1, 1);
+  const prevYm = `${prev.getFullYear()}-${String(prev.getMonth()+1).padStart(2,'0')}`;
   const prevTxns = allTxns.filter(t => t.date && t.date.startsWith(prevYm));
   const prevInc = prevTxns.filter(t => t.type==='income').reduce((s,t)=>s+t.amount, 0);
   const prevExp = prevTxns.filter(t => t.type==='expense').reduce((s,t)=>s+t.amount, 0);
