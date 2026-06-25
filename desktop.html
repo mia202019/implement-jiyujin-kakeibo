@@ -947,11 +947,11 @@ const lifeBizSpent  = lifeSpent + bizSpent;
   const dateLabel = `${selY}年${selM}月` + (isCurrentMonth ? ` · ${today.getDate()}日現在` : '');
 
   const spendPct = lifeBizBudget > 0 ? Math.round(lifeBizSpent/lifeBizBudget*100) : 0;
-  const advisoryBad = spendPct >= 90 || taxShortfall > 0;
+  const advisoryBad = spendPct >= 90 || (isBiz && taxShortfall > 0);
   let advisory = '';
   if (totalSpent === 0) advisory = 'まだ今月の記録がありません。支出・収入を入力してみましょう。';
   else if (spendPct >= 90) advisory = lifeBizLeft < 0 ? `消費枠の${spendPct}%を使用。-¥${fmt(-lifeBizLeft)}の超過です。` : `消費枠の${spendPct}%を使用。残り${daysLeft}日で¥${fmt(lifeBizLeft)}です。`;
-  else if (taxShortfall > 0 && taxGoal > 0) advisory = `税金積立が¥${fmt(taxShortfall)}不足しています。今月中に積立を。`;
+  else if (isBiz && taxShortfall > 0 && taxGoal > 0) advisory = `税金積立が¥${fmt(taxShortfall)}不足しています。今月中に積立を。`;
   else if (spendPct <= 60 && daysLeft < 15) advisory = `消費ペースは良好（${spendPct}%）。このペースをキープ！`;
   else advisory = `${monthLabel}の家計は順調です。このペースをキープしましょう。`;
 
@@ -959,7 +959,7 @@ const lifeBizSpent  = lifeSpent + bizSpent;
     <Shell active="home" go={go} title={`${monthLabel}の家計`} subtitle={dateLabel} actions={<><MonthPill /><AddButton go={go} /></>}>
 
       {/* ── ① 結論バー ── */}
-      <div style={{ background:'linear-gradient(135deg, #1D2A22 0%, #0B1F17 100%)', borderRadius:22, padding:'28px 32px', marginBottom:20, position:'relative', overflow:'hidden', display:'grid', gridTemplateColumns:'1.4fr 1fr 1fr', gap:24, alignItems:'center' }}>
+      <div style={{ background:'linear-gradient(135deg, #1D2A22 0%, #0B1F17 100%)', borderRadius:22, padding:'28px 32px', marginBottom:20, position:'relative', overflow:'hidden', display:'grid', gridTemplateColumns:isBiz?'1.4fr 1fr 1fr':'1.4fr 1fr', gap:24, alignItems:'center' }}>
         <div style={{ position:'absolute', right:-60, top:-60, width:220, height:220, background:'rgba(9,125,96,0.12)', borderRadius:'50%', pointerEvents:'none' }} />
         <div>
           {isBiz ? (
@@ -1002,15 +1002,17 @@ const lifeBizSpent  = lifeSpent + bizSpent;
           </div>
           <div style={{ fontSize:11, color:'rgba(255,255,255,0.3)', marginTop:4 }}>残り{daysLeft}日の予測</div>
         </div>
-        <div style={{ background: taxShortfall > 0 ? 'rgba(200,116,142,0.18)' : 'rgba(255,255,255,0.08)', borderRadius:14, padding:'16px 20px', border: taxShortfall > 0 ? '1px solid rgba(200,116,142,0.3)' : 'none' }}>
-          <div style={{ fontSize:11, color: taxShortfall > 0 ? 'rgba(249,168,174,0.65)' : 'rgba(255,255,255,0.4)', marginBottom:5 }}>税金積立</div>
-          <div style={{ fontSize:28, fontWeight:700, fontFeatureSettings:tnum, color: taxShortfall > 0 ? '#f9a8ae' : '#4ade80', letterSpacing:'-1px' }}>
-            {taxGoal === 0 ? '未設定' : taxShortfall > 0 ? `-¥${fmt(taxShortfall)}` : `+¥${fmt(taxSurplus)}`}
+        {isBiz && (
+          <div style={{ background: taxShortfall > 0 ? 'rgba(200,116,142,0.18)' : 'rgba(255,255,255,0.08)', borderRadius:14, padding:'16px 20px', border: taxShortfall > 0 ? '1px solid rgba(200,116,142,0.3)' : 'none' }}>
+            <div style={{ fontSize:11, color: taxShortfall > 0 ? 'rgba(249,168,174,0.65)' : 'rgba(255,255,255,0.4)', marginBottom:5 }}>税金積立</div>
+            <div style={{ fontSize:28, fontWeight:700, fontFeatureSettings:tnum, color: taxShortfall > 0 ? '#f9a8ae' : '#4ade80', letterSpacing:'-1px' }}>
+              {taxGoal === 0 ? '未設定' : taxShortfall > 0 ? `-¥${fmt(taxShortfall)}` : `+¥${fmt(taxSurplus)}`}
+            </div>
+            <div style={{ fontSize:11, color: taxShortfall > 0 ? 'rgba(249,168,174,0.5)' : 'rgba(255,255,255,0.3)', marginTop:4 }}>
+              {taxGoal > 0 ? (taxShortfall > 0 ? '不足しています' : '余剰') : '予算を設定してください'}
+            </div>
           </div>
-          <div style={{ fontSize:11, color: taxShortfall > 0 ? 'rgba(249,168,174,0.5)' : 'rgba(255,255,255,0.3)', marginTop:4 }}>
-            {taxGoal > 0 ? (taxShortfall > 0 ? '不足しています' : '余剰') : '予算を設定してください'}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* ── メイングリッド ── */}
@@ -1031,7 +1033,7 @@ const lifeBizSpent  = lifeSpent + bizSpent;
           {totalBudget > 0 && (
             <div style={{ marginBottom:20 }}>
               <div style={{ background:C.bgCard, borderRadius:5, height:10, overflow:'hidden', display:'flex', marginBottom:6 }}>
-                {[{a:lifeSpent,c:C.info},{a:bizSpent,c:C.primary},{a:taxSaved,c:C.warning},{a:investSaved,c:C.invest}].map((seg,i) => {
+                {[{a:lifeSpent,c:C.info},...(isBiz?[{a:bizSpent,c:C.primary},{a:taxSaved,c:C.warning}]:[]),{a:investSaved,c:C.invest}].map((seg,i) => {
                   const w = Math.min(98, Math.round(seg.a/totalBudget*100));
                   return w > 0 ? <div key={i} style={{ width:`${w}%`, background:seg.c, height:'100%' }} /> : null;
                 })}
@@ -1046,8 +1048,10 @@ const lifeBizSpent  = lifeSpent + bizSpent;
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             {[
               { label:'🏠 生活費',   color:C.info,    spent:lifeSpent,   budget:lifeBudget },
-              { label:'💼 事業費',   color:C.primary, spent:bizSpent,    budget:bizBudget },
-              { label:'📊 税金積立', color:C.warning, spent:taxSaved,    budget:taxGoal },
+              ...(isBiz ? [
+                { label:'💼 事業費',   color:C.primary, spent:bizSpent,    budget:bizBudget },
+                { label:'📊 税金積立', color:C.warning, spent:taxSaved,    budget:taxGoal },
+              ] : []),
               { label:'📈 投資',     color:C.invest,  spent:investSaved, budget:investGoal },
             ].map(item => {
               const pct = item.budget > 0 ? Math.min(100, Math.round(item.spent/item.budget*100)) : 0;
@@ -1079,7 +1083,7 @@ const lifeBizSpent  = lifeSpent + bizSpent;
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
           {/* 税金アクション */}
-          {taxShortfall > 0 && taxGoal > 0 && (
+          {isBiz && taxShortfall > 0 && taxGoal > 0 && (
             <div style={{ background:C.warningBg, borderRadius:16, padding:'16px 20px', borderLeft:`4px solid ${C.warning}` }}>
               <div style={{ fontSize:13, fontWeight:700, color:C.warning, marginBottom:4 }}>税金が¥{fmt(taxShortfall)}不足しています</div>
               <div style={{ fontSize:12, color:C.textMed, marginBottom:12 }}>目安{taxRate}%（売上¥{fmt(displayIncome)} - 経費¥{fmt(bizSpent)} = 課税所得¥{fmt(taxableIncome)}）· 積立済 ¥{fmt(taxSaved)}</div>
@@ -1292,7 +1296,7 @@ function ExpenseForm({ onSave }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
         <Field label="区分">
-          <Seg options={['生活費','事業費','税金','投資']} value={div} set={setDiv} />
+          <Seg options={isBiz ? ['生活費','事業費','税金','投資'] : ['生活費','投資']} value={div} set={setDiv} />
           {div === '投資' && (
             <div style={{ marginTop: 12 }}>
               <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, marginBottom: 8 }}>投資の種類</div>
@@ -1456,7 +1460,7 @@ function TxnEditModal({ txn, onClose, onSaved }) {
           {txn.type === 'expense' && (
             <Field label="区分">
               <div style={{ display:'flex', gap:6 }}>
-                {['生活費','事業費','税金','投資'].map(d => (
+                {(isBiz ? ['生活費','事業費','税金','投資'] : ['生活費','投資']).map(d => (
                   <button key={d} onClick={()=>setDiv(d)} style={{ flex:1, background:div===d?C.primary:C.bg, color:div===d?'white':C.text, borderRadius:8, padding:'9px 4px', fontSize:12, fontWeight:div===d?700:400, border:'none', cursor:'pointer' }}>{d}</button>
                 ))}
               </div>
@@ -1546,10 +1550,13 @@ function BudgetScreen({ go }) {
     '投資':    sumDiv(txns, '投資'),
   };
 
+  const isBiz = userType !== 'employee';
   const cats = [
     { key:'生活費',  name:'生活費',  color:C.info,    icon:'🏠', desc:'食費・交通費など日々の出費' },
-    { key:'事業費',  name:userType==='employee'?'特別支出':'事業費', color:C.primary, icon:'💼', desc:'材料費・機材・経費' },
-    { key:'税金積立', name:'税金積立', color:C.warning, icon:'📊', desc:`${taxRate}% 積立目標` },
+    ...(isBiz ? [
+      { key:'事業費',  name:'事業費', color:C.primary, icon:'💼', desc:'材料費・機材・経費' },
+      { key:'税金積立', name:'税金積立', color:C.warning, icon:'📊', desc:`${taxRate}% 積立目標` },
+    ] : []),
     { key:'投資',    name:userType==='freelance'?'投資':'貯蓄', color:C.invest, icon:'📈', desc:'将来への積立' },
   ];
 
@@ -1609,7 +1616,7 @@ function BudgetScreen({ go }) {
             </div>
           </Card>
 
-          {income > 0 && (
+          {income > 0 && isBiz && (
             <Card>
               <div style={{ fontSize:12, fontWeight:700, color:C.textMuted, marginBottom:12 }}>クイック配分</div>
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
@@ -2964,6 +2971,7 @@ function HistoryScreen({ go }) {
   const [q, setQ] = useState('');
   const [selectMode, setSelectMode] = useState(false);
   const [bulkSel, setBulkSel] = useState(new Set());
+  const isBiz = (Store.get('settings', {}).userType || 'freelance') !== 'employee';
 
   const list = all
     .filter(t => filter === 'all' ? true : filter === 'income' ? t.type === 'income' : t.division === filter)
@@ -3008,7 +3016,7 @@ function HistoryScreen({ go }) {
       <div style={{ display:'flex', gap:12, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="店名・カテゴリで検索..." style={{ flex:'1 1 200px', padding:'9px 14px', borderRadius:10, border:`1.5px solid ${C.border}`, fontSize:13, background:'white', outline:'none' }} />
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-          {[['all','すべて'],['income','収入'],['生活費','生活費'],['事業費','事業費'],['税金','税金'],['投資','投資']].map(([v,l]) => (
+          {[['all','すべて'],['income','収入'],['生活費','生活費'],...(isBiz?[['事業費','事業費'],['税金','税金']]:[]),['投資','投資']].map(([v,l]) => (
             <button key={v} onClick={()=>setFilter(v)} style={{ background:filter===v?C.primary:'white', color:filter===v?'white':C.textMuted, borderRadius:999, padding:'7px 16px', fontSize:12, fontWeight:filter===v?700:500, border:`1.5px solid ${filter===v?C.primary:C.border}`, cursor:'pointer', whiteSpace:'nowrap' }}>{l}</button>
           ))}
         </div>

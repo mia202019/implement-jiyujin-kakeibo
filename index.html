@@ -651,6 +651,7 @@ function TxnEditModal({ txn, onSave, onDelete, onClose }) {
   const [cat, setCat]       = useState(txn.category || '');
   const [div, setDiv]       = useState(txn.division || '生活費');
   const [pay, setPay]       = useState(txn.payment || getCards()[0]?.name || '現金');
+  const isBiz = (Store.get('settings', {}).userType || 'freelance') !== 'employee';
 
   const pickCat = (name) => {
     setCat(name);
@@ -702,7 +703,7 @@ function TxnEditModal({ txn, onSave, onDelete, onClose }) {
           <div style={{ marginBottom:14 }}>
             <div style={{ fontSize:11, fontWeight:600, color:C.textMuted, marginBottom:6 }}>区分</div>
             <div style={{ display:'flex', background:C.bg, borderRadius:12, padding:3, gap:2 }}>
-              {['生活費','事業費','税金','投資'].map(d => (
+              {(isBiz ? ['生活費','事業費','税金','投資'] : ['生活費','投資']).map(d => (
                 <button key={d} onClick={()=>setDiv(d)} style={{ flex:1, background:div===d?C.primary:'transparent', color:div===d?'white':C.textMuted, borderRadius:10, padding:'8px 2px', fontSize:11, fontWeight:div===d?700:500, border:'none', cursor:'pointer' }}>{d}</button>
               ))}
             </div>
@@ -796,11 +797,11 @@ const lifeBizSpent  = lifeSpent + bizSpent;
   const dateLabel = `${today.getFullYear()}年${today.getMonth()+1}月 · ${today.getDate()}日現在`;
 
   const spendPct = lifeBizBudget > 0 ? Math.round(lifeBizSpent/lifeBizBudget*100) : 0;
-  const advisoryBad = spendPct >= 90 || taxShortfall > 0;
+  const advisoryBad = spendPct >= 90 || (isBiz && taxShortfall > 0);
   let advisory = '';
   if (totalSpent === 0) advisory = 'まだ今月の記録がありません。入力してみましょう。';
   else if (spendPct >= 90) advisory = lifeBizLeft < 0 ? `消費枠の${spendPct}%を使用。-¥${fmt(-lifeBizLeft)}の超過です。` : `消費枠の${spendPct}%を使用。残り${daysLeft}日で¥${fmt(lifeBizLeft)}です。`;
-  else if (taxShortfall > 0 && taxGoal > 0) advisory = `税金積立が¥${fmt(taxShortfall)}不足。月内に積立を。`;
+  else if (isBiz && taxShortfall > 0 && taxGoal > 0) advisory = `税金積立が¥${fmt(taxShortfall)}不足。月内に積立を。`;
   else if (spendPct <= 60 && daysLeft < 15) advisory = `消費ペースは良好（${spendPct}%）。このペースをキープ！`;
   else advisory = `${monthLabel}は順調です。このペースをキープしましょう。`;
 
@@ -853,12 +854,14 @@ const lifeBizSpent  = lifeSpent + bizSpent;
                 {monthEndBalance >= 0 ? '+' : '-'}¥{fmt(Math.abs(monthEndBalance))}
               </div>
             </div>
-            <div style={{ flex:1, background: taxShortfall > 0 ? 'rgba(200,116,142,0.18)' : 'rgba(255,255,255,0.08)', borderRadius:12, padding:'10px 12px', border: taxShortfall > 0 ? '1px solid rgba(200,116,142,0.32)' : 'none' }}>
-              <div style={{ fontSize:10, color: taxShortfall > 0 ? 'rgba(249,168,174,0.72)' : 'rgba(255,255,255,0.42)', marginBottom:3 }}>税金積立</div>
-              <div style={{ fontSize:17, fontWeight:700, fontFeatureSettings:"'tnum'", color: taxShortfall > 0 ? '#f9a8ae' : '#4ade80' }}>
-                {taxGoal === 0 ? '未設定' : taxShortfall > 0 ? `-¥${fmt(taxShortfall)}不足` : `+¥${fmt(taxSurplus)}余剰`}
+            {isBiz && (
+              <div style={{ flex:1, background: taxShortfall > 0 ? 'rgba(200,116,142,0.18)' : 'rgba(255,255,255,0.08)', borderRadius:12, padding:'10px 12px', border: taxShortfall > 0 ? '1px solid rgba(200,116,142,0.32)' : 'none' }}>
+                <div style={{ fontSize:10, color: taxShortfall > 0 ? 'rgba(249,168,174,0.72)' : 'rgba(255,255,255,0.42)', marginBottom:3 }}>税金積立</div>
+                <div style={{ fontSize:17, fontWeight:700, fontFeatureSettings:"'tnum'", color: taxShortfall > 0 ? '#f9a8ae' : '#4ade80' }}>
+                  {taxGoal === 0 ? '未設定' : taxShortfall > 0 ? `-¥${fmt(taxShortfall)}不足` : `+¥${fmt(taxSurplus)}余剰`}
+                </div>
               </div>
-            </div>
+            )}
           </div>
           {(settingsIncome > 0 || confirmedIncome > 0) && (
             <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid rgba(255,255,255,0.07)', display:'flex', gap:3, fontSize:11, flexWrap:'wrap' }}>
@@ -891,7 +894,7 @@ const lifeBizSpent  = lifeSpent + bizSpent;
           {totalBudget > 0 && (
             <div style={{ marginBottom:14 }}>
               <div style={{ background:C.bgCard, borderRadius:5, height:8, overflow:'hidden', display:'flex', marginBottom:5 }}>
-                {[{a:lifeSpent,c:C.info},{a:bizSpent,c:C.primary},{a:taxSaved,c:C.warning},{a:investSaved,c:C.invest}].map((seg,i) => {
+                {[{a:lifeSpent,c:C.info},...(isBiz?[{a:bizSpent,c:C.primary},{a:taxSaved,c:C.warning}]:[]),{a:investSaved,c:C.invest}].map((seg,i) => {
                   const w = Math.min(98, Math.round(seg.a/totalBudget*100));
                   return w > 0 ? <div key={i} style={{ width:`${w}%`, background:seg.c, height:'100%' }} /> : null;
                 })}
@@ -906,8 +909,10 @@ const lifeBizSpent  = lifeSpent + bizSpent;
           <div style={{ display:'flex', flexDirection:'column', gap:11 }}>
             {[
               { label:'🏠 生活費',  color:C.info,    spent:lifeSpent,   budget:lifeBudget },
-              { label:'💼 事業費',  color:C.primary, spent:bizSpent,    budget:bizBudget },
-              { label:'📊 税金積立', color:C.warning, spent:taxSaved,    budget:taxGoal },
+              ...(isBiz ? [
+                { label:'💼 事業費',  color:C.primary, spent:bizSpent,    budget:bizBudget },
+                { label:'📊 税金積立', color:C.warning, spent:taxSaved,    budget:taxGoal },
+              ] : []),
               { label:'📈 投資',    color:C.invest,  spent:investSaved, budget:investGoal },
             ].map(item => {
               const pct = item.budget > 0 ? Math.min(100, Math.round(item.spent/item.budget*100)) : 0;
@@ -936,7 +941,7 @@ const lifeBizSpent  = lifeSpent + bizSpent;
         </Card>
 
         {/* ── 税金アクション ── */}
-        {taxShortfall > 0 && taxGoal > 0 && (
+        {isBiz && taxShortfall > 0 && taxGoal > 0 && (
           <div style={{ margin:'0 16px 14px', background:C.warningBg, borderRadius:16, padding:'14px 16px', borderLeft:`3px solid ${C.warning}`, display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
             <div>
               <div style={{ fontSize:12, fontWeight:700, color:C.warning, marginBottom:2 }}>税金が¥{fmt(taxShortfall)}不足しています</div>
@@ -1037,6 +1042,7 @@ function HistoryScreen({ go }) {
   const [filter, setFilter] = useState('all');
   const [selectMode, setSelectMode] = useState(false);
   const [bulkSel, setBulkSel] = useState(new Set());
+  const isBiz = (Store.get('settings', {}).userType || 'freelance') !== 'employee';
 
   const filtered = filter === 'all' ? txns
     : filter === 'income' ? txns.filter(t=>t.type==='income')
@@ -1093,7 +1099,7 @@ function HistoryScreen({ go }) {
         </div>
 
         <div style={{ display:'flex', gap:6, marginBottom:16, overflowX:'auto', paddingBottom:4 }}>
-          {[['all','すべて'],['income','収入'],['生活費','生活費'],['事業費','事業費'],['税金','税金'],['投資','投資']].map(([v,l]) => (
+          {[['all','すべて'],['income','収入'],['生活費','生活費'],...(isBiz?[['事業費','事業費'],['税金','税金']]:[]),['投資','投資']].map(([v,l]) => (
             <button key={v} onClick={()=>setFilter(v)} style={{ background:filter===v?C.primary:'white', color:filter===v?'white':C.textMuted, borderRadius:999, padding:'7px 16px', fontSize:11, fontWeight:filter===v?700:500, whiteSpace:'nowrap', flexShrink:0, boxShadow:'0 1px 4px rgba(0,0,0,0.06)', border:'none', cursor:'pointer' }}>{l}</button>
           ))}
         </div>
@@ -1182,6 +1188,7 @@ function ExpenseInput({ onBack, onDone, go }) {
   const [investType, setInvestType] = useState('積立NISA');
   const [pay,    setPay]    = useState(() => getCards()[0]?.name || '現金');
   const [memo,   setMemo]   = useState('');
+  const isBiz = (Store.get('settings', {}).userType || 'freelance') !== 'employee';
 
   const isCustomDate = date !== '今日' && date !== '昨日';
   const finalCat = cat === 'その他' ? (catOther.trim() || 'その他') : cat;
@@ -1284,7 +1291,7 @@ function ExpenseInput({ onBack, onDone, go }) {
         <Card style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: '0.06em', marginBottom: 12 }}>区分</div>
           <div style={{ display: 'flex', background: C.bg, borderRadius: 14, padding: 3, gap: 2 }}>
-            {['生活費','事業費','税金','投資'].map(d => (
+            {(isBiz ? ['生活費','事業費','税金','投資'] : ['生活費','投資']).map(d => (
               <button key={d} onClick={() => setDiv(d)} style={{ flex: 1, background: div === d ? C.primary : 'transparent', color: div === d ? 'white' : C.textMuted, borderRadius: 12, padding: '10px 2px', textAlign: 'center', fontSize: 12, fontWeight: div === d ? 700 : 500, boxShadow: div === d ? '0 2px 8px rgba(9,125,96,0.3)' : 'none' }}>
                 {d}
               </button>
@@ -1683,10 +1690,13 @@ function BudgetScreen({ go }) {
     '投資':    sumDiv(txns, '投資'),
   };
 
+  const isBiz = userType !== 'employee';
   const cats = [
     { key:'生活費',  name:'生活費',  color:C.info,    icon:'🏠', desc:'食費・交通費など日々の出費' },
-    { key:'事業費',  name:userType==='employee'?'特別支出':'事業費', color:C.primary, icon:'💼', desc:'材料費・機材・経費' },
-    { key:'税金積立', name:'税金積立', color:C.warning, icon:'📊', desc:`${taxRate}% 積立目標` },
+    ...(isBiz ? [
+      { key:'事業費',  name:'事業費', color:C.primary, icon:'💼', desc:'材料費・機材・経費' },
+      { key:'税金積立', name:'税金積立', color:C.warning, icon:'📊', desc:`${taxRate}% 積立目標` },
+    ] : []),
     { key:'投資',    name:userType==='freelance'?'投資':'貯蓄', color:C.invest, icon:'📈', desc:'将来への積立' },
   ];
 
@@ -1717,7 +1727,7 @@ function BudgetScreen({ go }) {
       <div style={{ flex:1, overflowY:'auto', padding:'56px 20px 20px' }}>
         <div style={{ display:'flex', background:C.primaryLight, borderRadius:14, padding:3, gap:2, marginBottom:20 }}>
           <button style={{ flex:1, background:C.primary, color:'white', padding:'10px', fontSize:13, fontWeight:700, borderRadius:12, boxShadow:'0 3px 10px rgba(9,125,96,0.3)' }}>予算</button>
-          <button onClick={() => go('tax')} style={{ flex:1, color:C.textMuted, padding:'10px', fontSize:13, fontWeight:500, borderRadius:12 }}>税金・積立</button>
+          {isBiz && <button onClick={() => go('tax')} style={{ flex:1, color:C.textMuted, padding:'10px', fontSize:13, fontWeight:500, borderRadius:12 }}>税金・積立</button>}
         </div>
 
         <div style={{ fontSize:21, fontWeight:700, color:C.text, marginBottom:20 }}>月の予算設定</div>
@@ -1754,7 +1764,7 @@ function BudgetScreen({ go }) {
           </div>
 
           {/* Quick presets */}
-          {income > 0 && (
+          {income > 0 && isBiz && (
             <div style={{ marginTop:16, paddingTop:14, borderTop:`1px solid ${C.bgCard}` }}>
               <div style={{ fontSize:11, fontWeight:600, color:C.textMuted, marginBottom:10 }}>クイック配分</div>
               <div style={{ display:'flex', gap:8 }}>
