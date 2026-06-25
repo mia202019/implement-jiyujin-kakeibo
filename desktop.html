@@ -342,8 +342,11 @@ function guessCategory(name) {
   return 'その他';
 }
 function parseCSVText(text) {
-  const lines = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-  return lines.filter(l => l.trim()).map(line => {
+  const lines = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
+  const firstLine = lines[0] || '';
+  const sep = firstLine.split('\t').length > firstLine.split(',').length ? '\t' : ',';
+  return lines.map(line => {
+    if (sep === '\t') return line.split('\t').map(s => s.trim());
     const cols = []; let cur = '', inQ = false;
     for (let i = 0; i < line.length; i++) {
       const ch = line[i];
@@ -368,7 +371,7 @@ function detectCSVFormat(rows) {
     const h = rows[i].join(',');
     if (h.includes('利用日')||h.includes('ご利用')) return { fmt:'vpass', headerIdx:i };
     if (h.includes('取引日')&&(h.includes('取引先')||h.includes('支払'))) return { fmt:'paypay', headerIdx:i };
-    if (h.includes('支払金額')&&h.includes('入金額')) return { fmt:'bank-stmt', headerIdx:i };
+    if (h.includes('支払金額')&&(h.includes('入金額')||h.includes('預り金額'))) return { fmt:'bank-stmt', headerIdx:i };
   }
   const isDate = s => /^\d{4}\/\d{1,2}\/\d{1,2}$/.test((s||'').trim());
   const isInt  = s => /^\d+$/.test((s||'').trim());
