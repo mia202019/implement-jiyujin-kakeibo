@@ -416,6 +416,7 @@ function CsvImportPanel({ onImported }) {
 
   const handleFile = e => {
     const file = e.target.files[0]; if (!file) return;
+    showToast('読み込み中...');
 
     const tryProcess = (text) => {
       try {
@@ -432,15 +433,19 @@ function CsvImportPanel({ onImported }) {
       } catch { return false; }
     };
 
-    const readWith = (enc, cb) => { const r=new FileReader(); r.onload=ev=>cb(ev.target.result); r.readAsText(file, enc); };
-
-    readWith('UTF-8', t => {
-      if (!tryProcess(t)) readWith('Shift_JIS', t2 => {
-        if (!tryProcess(t2)) readWith('EUC-JP', t3 => {
-          if (!tryProcess(t3)) showToast('読み込めませんでした。形式を手動で選択してください');
-        });
-      });
-    });
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const buf = ev.target.result;
+      let ok = false;
+      try { ok = tryProcess(new TextDecoder('UTF-8',{fatal:true}).decode(buf)); } catch {}
+      if (ok) return;
+      try { ok = tryProcess(new TextDecoder('Shift_JIS',{fatal:false}).decode(buf)); } catch {}
+      if (ok) return;
+      try { ok = tryProcess(new TextDecoder('EUC-JP',{fatal:false}).decode(buf)); } catch {}
+      if (!ok) showToast('読み込めませんでした。形式を手動で選択してください');
+    };
+    reader.onerror = () => showToast('ファイルを開けませんでした');
+    reader.readAsArrayBuffer(file);
   };
 
   const toggle = i => { const n=new Set(selected); n.has(i)?n.delete(i):n.add(i); setSelected(n); };

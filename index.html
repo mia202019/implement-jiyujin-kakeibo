@@ -3012,6 +3012,7 @@ function CsvImportScreen({ go }) {
   const handleFile = e => {
     const file = e.target.files[0];
     if (!file) return;
+    showToast('読み込み中...');
 
     const tryProcess = (text) => {
       try {
@@ -3029,27 +3030,35 @@ function CsvImportScreen({ go }) {
         setSelected(new Set(txns.map((_, i) => i)));
         setStep('preview');
         return true;
-      } catch { return false; }
+      } catch(err) { return false; }
     };
 
-    const readWith = (encoding, onDone) => {
-      const reader = new FileReader();
-      reader.onload = ev => onDone(ev.target.result);
-      reader.readAsText(file, encoding);
+    // ArrayBuffer + TextDecoder for reliable multi-encoding detection
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const buf = ev.target.result;
+      // Try UTF-8 strict first — if it throws the file is not UTF-8
+      let ok = false;
+      try {
+        const text = new TextDecoder('UTF-8', { fatal: true }).decode(buf);
+        ok = tryProcess(text);
+      } catch {}
+      if (ok) return;
+      // Shift-JIS (most Japanese bank/card CSVs)
+      try {
+        const text = new TextDecoder('Shift_JIS', { fatal: false }).decode(buf);
+        ok = tryProcess(text);
+      } catch {}
+      if (ok) return;
+      // EUC-JP fallback
+      try {
+        const text = new TextDecoder('EUC-JP', { fatal: false }).decode(buf);
+        ok = tryProcess(text);
+      } catch {}
+      if (!ok) showToast('読み込めませんでした。形式を手動で選択してください');
     };
-
-    // Try UTF-8 → Shift-JIS → EUC-JP in sequence
-    readWith('UTF-8', text => {
-      if (!tryProcess(text)) {
-        readWith('Shift_JIS', text2 => {
-          if (!tryProcess(text2)) {
-            readWith('EUC-JP', text3 => {
-              if (!tryProcess(text3)) showToast('読み込めませんでした。形式を手動で選択してください');
-            });
-          }
-        });
-      }
-    });
+    reader.onerror = () => showToast('ファイルを開けませんでした');
+    reader.readAsArrayBuffer(file);
   };
 
   const toggleAll = () => {
