@@ -355,11 +355,11 @@ function parseCSVText(text) {
   });
 }
 function normDate(str) {
-  if (!str) return TODAY;
+  if (!str) return '';
   const s = str.replace(/年/,'-').replace(/月/,'-').replace(/日/,'').replace(/\//g,'-').trim().slice(0,10);
   if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)) { const [y,m,d]=s.split('-'); return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`; }
   if (/^\d{1,2}-\d{1,2}$/.test(s)) { const [m,d]=s.split('-'); return `${TODAY.slice(0,4)}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`; }
-  return TODAY;
+  return '';
 }
 function normAmt(str) { const n=parseInt(String(str||'').replace(/[^0-9]/g,'')); return isNaN(n)?0:n; }
 function rawAmt(str) { const s=String(str||'').trim(); const n=parseInt(s.replace(/[^0-9]/g,'')); return isNaN(n)?0:(s.startsWith('-')?-n:n); }
@@ -410,6 +410,7 @@ function csvRowToTxn(row, headers, fmt, autoClassOn, idx) {
     date=normDate(row[dc]); desc=nc>=0?row[nc]:row[1]||''; amount=ac>=0?normAmt(row[ac]):0;
   }
   if (!amount||amount<=0) return null;
+  if (!date) return null;
   return { tempId:idx, date, memo:desc, category:autoClassOn?guessCategory(desc):'その他', amount, type:'expense', division:(fmt==='paypay'||fmt==='bank-stmt')?'事業費':'生活費', payment };
 }
 

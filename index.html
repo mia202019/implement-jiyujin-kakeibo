@@ -2968,7 +2968,7 @@ function parseCSVText(text) {
 }
 
 function normalizeDate(str) {
-  if (!str) return TODAY;
+  if (!str) return '';
   const s = str.replace(/年/,'-').replace(/月/,'-').replace(/日/,'').replace(/\//g,'-').trim().slice(0,10);
   if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)) {
     const [y,m,d] = s.split('-');
@@ -2978,7 +2978,7 @@ function normalizeDate(str) {
     const [m,d] = s.split('-');
     return `${TODAY.slice(0,4)}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
   }
-  return TODAY;
+  return '';
 }
 
 function normalizeAmount(str) {
@@ -3063,6 +3063,7 @@ function rowToTxn(row, headers, fmt, autoClassOn, idx) {
   }
 
   if (!amount || amount <= 0) return null;
+  if (!date) return null;
   return {
     tempId: idx,
     date, memo: desc,
