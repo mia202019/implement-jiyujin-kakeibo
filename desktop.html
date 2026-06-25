@@ -131,7 +131,7 @@ function sumDiv(txns, div) { return txns.filter(t=>t.type==='expense'&&t.divisio
 const CAT_EMOJI = {
   '食費':'🛒', '外食':'🍜', '交通費':'🚌', '日用品':'🧴',
   '美容・衣服':'👗', '医療・健康':'💊', '通信費':'📱', '趣味・娯楽':'🎮',
-  '材料費':'🎨', '機材・ソフト':'💻', '出店料':'🏪', '交際費':'🥂',
+  'サブスク':'📺', '材料費':'🎨', '機材・ソフト':'💻', '出店料':'🏪', '交際費':'🥂',
   '教育・学習':'📚', 'その他':'📋', '売上':'💰',
 };
 
@@ -1165,6 +1165,7 @@ const EXPENSE_CATS = [
   { name:'美容・衣服', emoji:'👗', group:'life' },
   { name:'医療・健康', emoji:'💊', group:'life' },
   { name:'趣味・娯楽', emoji:'🎮', group:'life' },
+  { name:'サブスク',   emoji:'📺', group:'life' },
   { name:'材料費',     emoji:'🎨', group:'biz'  },
   { name:'機材・ソフト',emoji:'💻', group:'biz'  },
   { name:'出店料',     emoji:'🏪', group:'biz'  },
