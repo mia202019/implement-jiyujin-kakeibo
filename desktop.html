@@ -950,7 +950,7 @@ const lifeBizSpent  = lifeSpent + bizSpent;
   const advisoryBad = spendPct >= 90 || (isBiz && taxShortfall > 0);
   let advisory = '';
   if (totalSpent === 0) advisory = 'まだ今月の記録がありません。支出・収入を入力してみましょう。';
-  else if (spendPct >= 90) advisory = lifeBizLeft < 0 ? `消費枠の${spendPct}%を使用。-¥${fmt(-lifeBizLeft)}の超過です。` : `消費枠の${spendPct}%を使用。残り${daysLeft}日で¥${fmt(lifeBizLeft)}です。`;
+  else if (spendPct >= 90) advisory = lifeBizLeft < 0 ? `予算を¥${fmt(-lifeBizLeft)}オーバーしています。支出を見直しましょう。` : `予算の${spendPct}%を使用中。残り${daysLeft}日、¥${fmt(lifeBizLeft)}で過ごしましょう。`;
   else if (isBiz && taxShortfall > 0 && taxGoal > 0) advisory = `税金積立が¥${fmt(taxShortfall)}不足しています。今月中に積立を。`;
   else if (spendPct <= 60 && daysLeft < 15) advisory = `消費ペースは良好（${spendPct}%）。このペースをキープ！`;
   else advisory = `${monthLabel}の家計は順調です。このペースをキープしましょう。`;
@@ -959,20 +959,23 @@ const lifeBizSpent  = lifeSpent + bizSpent;
     <Shell active="home" go={go} title={`${monthLabel}の家計`} subtitle={dateLabel} actions={<><MonthPill /><AddButton go={go} /></>}>
 
       {/* ── ① 結論バー ── */}
-      <div style={{ background:'linear-gradient(135deg, #1D2A22 0%, #0B1F17 100%)', borderRadius:22, padding:'28px 32px', marginBottom:20, position:'relative', overflow:'hidden', display:'grid', gridTemplateColumns:isBiz?'1.4fr 1fr 1fr':'1.4fr 1fr', gap:24, alignItems:'center' }}>
+      <div style={{ background:'linear-gradient(135deg, #1D2A22 0%, #0B1F17 100%)', borderRadius:22, padding:'28px 32px', marginBottom:20, position:'relative', overflow:'hidden', display:'grid', gridTemplateColumns:isBiz?'1.6fr 1fr':'1fr', gap:24, alignItems:'center' }}>
         <div style={{ position:'absolute', right:-60, top:-60, width:220, height:220, background:'rgba(9,125,96,0.12)', borderRadius:'50%', pointerEvents:'none' }} />
         <div>
           {isBiz ? (
             <>
-              <div style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.45)', marginBottom:10, letterSpacing:'0.02em' }}>今月あと使える金額</div>
-              <div style={{ display:'flex', gap:10, marginBottom:8 }}>
-                <div style={{ flex:1, background:'rgba(255,255,255,0.07)', borderRadius:12, padding:'12px 16px' }}>
-                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.42)', marginBottom:4 }}>🏠 生活費あと</div>
-                  <div style={{ fontSize:28, fontWeight:700, color: lifeLeft > 0 ? '#A8E6CF' : '#f87171', fontFeatureSettings:tnum, letterSpacing:'-1px' }}>¥{fmt(lifeLeft)}</div>
+              <div style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.45)', marginBottom:4, letterSpacing:'0.02em' }}>{lifeBizLeft < 0 ? '今月の超過金額' : '今月あと使える金額'}</div>
+              <div style={{ display:'flex', alignItems:'baseline', gap:7, marginBottom:10 }}>
+                <span style={{ fontSize:60, fontWeight:700, color: lifeBizLeft >= 0 ? 'white' : '#f87171', letterSpacing:'-3px', fontFeatureSettings:tnum, lineHeight:1 }}>{lifeBizLeft < 0 ? `-¥${fmt(-lifeBizLeft)}` : `¥${fmt(lifeBizLeft)}`}</span>
+              </div>
+              <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+                <div style={{ background:'rgba(255,255,255,0.06)', borderRadius:10, padding:'8px 12px' }}>
+                  <div style={{ fontSize:10, color:'rgba(255,255,255,0.38)', marginBottom:3 }}>🏠 生活費あと</div>
+                  <div style={{ fontSize:17, fontWeight:700, color: lifeLeft > 0 ? '#A8E6CF' : '#f87171', fontFeatureSettings:tnum, letterSpacing:'-0.5px' }}>¥{fmt(lifeLeft)}</div>
                 </div>
-                <div style={{ flex:1, background:'rgba(255,255,255,0.07)', borderRadius:12, padding:'12px 16px' }}>
-                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.42)', marginBottom:4 }}>💼 事業費あと</div>
-                  <div style={{ fontSize:28, fontWeight:700, color: bizLeft > 0 ? '#6EDBB8' : '#f87171', fontFeatureSettings:tnum, letterSpacing:'-1px' }}>¥{fmt(bizLeft)}</div>
+                <div style={{ background:'rgba(255,255,255,0.06)', borderRadius:10, padding:'8px 12px' }}>
+                  <div style={{ fontSize:10, color:'rgba(255,255,255,0.38)', marginBottom:3 }}>💼 事業費あと</div>
+                  <div style={{ fontSize:17, fontWeight:700, color: bizLeft > 0 ? '#6EDBB8' : '#f87171', fontFeatureSettings:tnum, letterSpacing:'-0.5px' }}>¥{fmt(bizLeft)}</div>
                 </div>
               </div>
               <div style={{ fontSize:12, color:'rgba(255,255,255,0.35)', marginBottom:8 }}>残り{daysLeft}日 · 1日あたり ¥{fmt(dailyBudget)} ペース</div>
@@ -994,13 +997,6 @@ const lifeBizSpent  = lifeSpent + bizSpent;
               )}
             </div>
           )}
-        </div>
-        <div style={{ background:'rgba(255,255,255,0.08)', borderRadius:14, padding:'16px 20px' }}>
-          <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginBottom:5 }}>月末残り予測</div>
-          <div style={{ fontSize:28, fontWeight:700, fontFeatureSettings:tnum, color: monthEndBalance >= 0 ? '#4ade80' : '#f87171', letterSpacing:'-1px' }}>
-            {monthEndBalance >= 0 ? '+' : '-'}¥{fmt(Math.abs(monthEndBalance))}
-          </div>
-          <div style={{ fontSize:11, color:'rgba(255,255,255,0.3)', marginTop:4 }}>残り{daysLeft}日の予測</div>
         </div>
         {isBiz && (
           <div style={{ background: taxShortfall > 0 ? 'rgba(200,116,142,0.18)' : 'rgba(255,255,255,0.08)', borderRadius:14, padding:'16px 20px', border: taxShortfall > 0 ? '1px solid rgba(200,116,142,0.3)' : 'none' }}>

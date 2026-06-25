@@ -800,7 +800,7 @@ const lifeBizSpent  = lifeSpent + bizSpent;
   const advisoryBad = spendPct >= 90 || (isBiz && taxShortfall > 0);
   let advisory = '';
   if (totalSpent === 0) advisory = 'まだ今月の記録がありません。入力してみましょう。';
-  else if (spendPct >= 90) advisory = lifeBizLeft < 0 ? `消費枠の${spendPct}%を使用。-¥${fmt(-lifeBizLeft)}の超過です。` : `消費枠の${spendPct}%を使用。残り${daysLeft}日で¥${fmt(lifeBizLeft)}です。`;
+  else if (spendPct >= 90) advisory = lifeBizLeft < 0 ? `予算を¥${fmt(-lifeBizLeft)}オーバーしています。支出を見直しましょう。` : `予算の${spendPct}%を使用中。残り${daysLeft}日、¥${fmt(lifeBizLeft)}で過ごしましょう。`;
   else if (isBiz && taxShortfall > 0 && taxGoal > 0) advisory = `税金積立が¥${fmt(taxShortfall)}不足。月内に積立を。`;
   else if (spendPct <= 60 && daysLeft < 15) advisory = `消費ペースは良好（${spendPct}%）。このペースをキープ！`;
   else advisory = `${monthLabel}は順調です。このペースをキープしましょう。`;
@@ -821,18 +821,21 @@ const lifeBizSpent  = lifeSpent + bizSpent;
           <div style={{ position:'absolute', right:-44, top:-44, width:160, height:160, background:'rgba(9,125,96,0.14)', borderRadius:'50%', pointerEvents:'none' }} />
           {isBiz ? (
             <>
-              <div style={{ fontSize:11, fontWeight:600, color:'rgba(255,255,255,0.48)', marginBottom:8, letterSpacing:'0.02em' }}>今月あと使える金額</div>
+              <div style={{ fontSize:11, fontWeight:600, color:'rgba(255,255,255,0.48)', marginBottom:3, letterSpacing:'0.02em' }}>{lifeBizLeft < 0 ? '今月の超過金額' : '今月あと使える金額'}</div>
+              <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:10 }}>
+                <span style={{ fontSize:50, fontWeight:700, color: lifeBizLeft >= 0 ? 'white' : '#f87171', letterSpacing:'-2.5px', fontFeatureSettings:"'tnum'", lineHeight:1 }}>{lifeBizLeft < 0 ? `-¥${fmt(-lifeBizLeft)}` : `¥${fmt(lifeBizLeft)}`}</span>
+              </div>
               <div style={{ display:'flex', gap:8, marginBottom:8 }}>
-                <div style={{ flex:1, background:'rgba(255,255,255,0.07)', borderRadius:12, padding:'10px 12px' }}>
-                  <div style={{ fontSize:10, color:'rgba(255,255,255,0.42)', marginBottom:3 }}>🏠 生活費あと</div>
-                  <div style={{ fontSize:24, fontWeight:700, color: lifeLeft > 0 ? '#A8E6CF' : '#f87171', fontFeatureSettings:"'tnum'", letterSpacing:'-1px' }}>¥{fmt(lifeLeft)}</div>
+                <div style={{ background:'rgba(255,255,255,0.06)', borderRadius:10, padding:'7px 10px' }}>
+                  <div style={{ fontSize:10, color:'rgba(255,255,255,0.38)', marginBottom:2 }}>🏠 生活費あと</div>
+                  <div style={{ fontSize:15, fontWeight:700, color: lifeLeft > 0 ? '#A8E6CF' : '#f87171', fontFeatureSettings:"'tnum'" }}>¥{fmt(lifeLeft)}</div>
                 </div>
-                <div style={{ flex:1, background:'rgba(255,255,255,0.07)', borderRadius:12, padding:'10px 12px' }}>
-                  <div style={{ fontSize:10, color:'rgba(255,255,255,0.42)', marginBottom:3 }}>💼 事業費あと</div>
-                  <div style={{ fontSize:24, fontWeight:700, color: bizLeft > 0 ? '#6EDBB8' : '#f87171', fontFeatureSettings:"'tnum'", letterSpacing:'-1px' }}>¥{fmt(bizLeft)}</div>
+                <div style={{ background:'rgba(255,255,255,0.06)', borderRadius:10, padding:'7px 10px' }}>
+                  <div style={{ fontSize:10, color:'rgba(255,255,255,0.38)', marginBottom:2 }}>💼 事業費あと</div>
+                  <div style={{ fontSize:15, fontWeight:700, color: bizLeft > 0 ? '#6EDBB8' : '#f87171', fontFeatureSettings:"'tnum'" }}>¥{fmt(bizLeft)}</div>
                 </div>
               </div>
-              <div style={{ fontSize:11, color:'rgba(255,255,255,0.35)', marginBottom:15 }}>
+              <div style={{ fontSize:11, color:'rgba(255,255,255,0.35)', marginBottom:12 }}>
                 残り{daysLeft}日 · 1日あたり ¥{fmt(dailyBudget)}ペース
               </div>
             </>
@@ -847,22 +850,14 @@ const lifeBizSpent  = lifeSpent + bizSpent;
               </div>
             </>
           )}
-          <div style={{ display:'flex', gap:10 }}>
-            <div style={{ flex:1, background:'rgba(255,255,255,0.08)', borderRadius:12, padding:'10px 12px' }}>
-              <div style={{ fontSize:10, color:'rgba(255,255,255,0.42)', marginBottom:3 }}>月末残り予測</div>
-              <div style={{ fontSize:17, fontWeight:700, fontFeatureSettings:"'tnum'", color: monthEndBalance >= 0 ? '#4ade80' : '#f87171' }}>
-                {monthEndBalance >= 0 ? '+' : '-'}¥{fmt(Math.abs(monthEndBalance))}
+          {isBiz && (
+            <div style={{ background: taxShortfall > 0 ? 'rgba(200,116,142,0.18)' : 'rgba(255,255,255,0.08)', borderRadius:12, padding:'10px 12px', border: taxShortfall > 0 ? '1px solid rgba(200,116,142,0.32)' : 'none' }}>
+              <div style={{ fontSize:10, color: taxShortfall > 0 ? 'rgba(249,168,174,0.72)' : 'rgba(255,255,255,0.42)', marginBottom:3 }}>税金積立</div>
+              <div style={{ fontSize:17, fontWeight:700, fontFeatureSettings:"'tnum'", color: taxShortfall > 0 ? '#f9a8ae' : '#4ade80' }}>
+                {taxGoal === 0 ? '未設定' : taxShortfall > 0 ? `-¥${fmt(taxShortfall)}不足` : `+¥${fmt(taxSurplus)}余剰`}
               </div>
             </div>
-            {isBiz && (
-              <div style={{ flex:1, background: taxShortfall > 0 ? 'rgba(200,116,142,0.18)' : 'rgba(255,255,255,0.08)', borderRadius:12, padding:'10px 12px', border: taxShortfall > 0 ? '1px solid rgba(200,116,142,0.32)' : 'none' }}>
-                <div style={{ fontSize:10, color: taxShortfall > 0 ? 'rgba(249,168,174,0.72)' : 'rgba(255,255,255,0.42)', marginBottom:3 }}>税金積立</div>
-                <div style={{ fontSize:17, fontWeight:700, fontFeatureSettings:"'tnum'", color: taxShortfall > 0 ? '#f9a8ae' : '#4ade80' }}>
-                  {taxGoal === 0 ? '未設定' : taxShortfall > 0 ? `-¥${fmt(taxShortfall)}不足` : `+¥${fmt(taxSurplus)}余剰`}
-                </div>
-              </div>
-            )}
-          </div>
+          )}
           {(settingsIncome > 0 || confirmedIncome > 0) && (
             <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid rgba(255,255,255,0.07)', display:'flex', gap:3, fontSize:11, flexWrap:'wrap' }}>
               <span style={{ color:'rgba(255,255,255,0.32)' }}>確定収入</span>
