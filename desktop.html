@@ -910,7 +910,7 @@ function HomeScreen({ go }) {
 
   const lifeBizBudget = lifeBudget + bizBudget || Math.max(0, displayIncome - taxGoal - investGoal - fixedTotal);
   const lifeBizSpent  = lifeSpent + bizSpent;
-  const lifeBizLeft   = Math.max(0, lifeBizBudget - lifeBizSpent);
+  const lifeBizLeft   = lifeBizBudget - lifeBizSpent;
   const dailyBudget   = daysLeft > 0 ? Math.round(lifeBizLeft / daysLeft) : 0;
   const lifeLeft      = Math.max(0, lifeBudget - lifeSpent);
   const bizLeft       = Math.max(0, bizBudget  - bizSpent);
@@ -966,11 +966,11 @@ function HomeScreen({ go }) {
             </>
           ) : (
             <>
-              <div style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.45)', marginBottom:4, letterSpacing:'0.02em' }}>今月あと使える金額</div>
+              <div style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.45)', marginBottom:4, letterSpacing:'0.02em' }}>{lifeBizLeft < 0 ? '今月の超過金額' : '今月あと使える金額'}</div>
               <div style={{ display:'flex', alignItems:'baseline', gap:7, marginBottom:6 }}>
-                <span style={{ fontSize:64, fontWeight:700, color: lifeBizLeft > 0 ? 'white' : '#f87171', letterSpacing:'-3px', fontFeatureSettings:tnum, lineHeight:1 }}>¥{fmt(lifeBizLeft)}</span>
+                <span style={{ fontSize:64, fontWeight:700, color: lifeBizLeft >= 0 ? 'white' : '#f87171', letterSpacing:'-3px', fontFeatureSettings:tnum, lineHeight:1 }}>{lifeBizLeft < 0 ? `-¥${fmt(-lifeBizLeft)}` : `¥${fmt(lifeBizLeft)}`}</span>
               </div>
-              <div style={{ fontSize:13, color:'rgba(255,255,255,0.35)', marginBottom:8 }}>残り{daysLeft}日 · 1日あたり ¥{fmt(dailyBudget)} ペース</div>
+              <div style={{ fontSize:13, color:'rgba(255,255,255,0.35)', marginBottom:8 }}>{lifeBizLeft < 0 ? `予算を¥${fmt(-lifeBizLeft)}オーバーしています` : `残り${daysLeft}日 · 1日あたり ¥${fmt(dailyBudget)} ペース`}</div>
             </>
           )}
           {(settingsIncome > 0 || confirmedIncome > 0) && (
