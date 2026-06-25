@@ -1215,6 +1215,7 @@ function ExpenseForm({ onSave }) {
   const [investType, setInvestType] = useState('積立NISA');
   const [pay, setPay] = useState(() => getCards()[0]?.name || '現金');
   const [memo, setMemo] = useState('');
+  const isBiz = (Store.get('settings', {}).userType || 'freelance') !== 'employee';
   const inputStyle = { background: C.bg, borderRadius: 12, padding: '13px 16px', fontSize: 14, color: C.text, border: 'none', width: '100%', outline: 'none' };
   const isCustomDate = date !== '今日' && date !== '昨日';
   const finalCat = cat === 'その他' ? (catOther.trim() || 'その他') : cat;
@@ -1418,6 +1419,7 @@ function TxnEditModal({ txn, onClose, onSaved }) {
   const [cat,    setCat]    = useState(txn.category || '');
   const [div,    setDiv]    = useState(txn.division || '生活費');
   const [pay,    setPay]    = useState(txn.payment  || getCards()[0]?.name || '');
+  const isBiz = (Store.get('settings', {}).userType || 'freelance') !== 'employee';
   const inputStyle = { background: C.bg, borderRadius: 10, padding: '10px 14px', fontSize: 14, color: C.text, border: `1.5px solid ${C.border}`, width: '100%', outline: 'none', boxSizing: 'border-box' };
 
   const save = () => {
