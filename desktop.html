@@ -913,7 +913,8 @@ function HomeScreen({ go }) {
   const bdg = Store.get('budgets', {});
   const lifeBudget  = bdg['生活費']  || 0;
   const bizBudget   = bdg['事業費']  || 0;
-  const taxGoal     = bdg['税金積立'] || (displayIncome > 0 ? Math.round(displayIncome * taxRate / 100) : 0);
+  const taxableIncome = Math.max(0, displayIncome - bizSpent);
+  const taxGoal     = bdg['税金積立'] || (taxableIncome > 0 ? Math.round(taxableIncome * taxRate / 100) : 0);
   const investGoal  = bdg['投資']    || savingsGoal;
   const totalBudget = lifeBudget + bizBudget + taxGoal + investGoal;
 
@@ -1081,7 +1082,7 @@ function HomeScreen({ go }) {
           {taxShortfall > 0 && taxGoal > 0 && (
             <div style={{ background:C.warningBg, borderRadius:16, padding:'16px 20px', borderLeft:`4px solid ${C.warning}` }}>
               <div style={{ fontSize:13, fontWeight:700, color:C.warning, marginBottom:4 }}>税金が¥{fmt(taxShortfall)}不足しています</div>
-              <div style={{ fontSize:12, color:C.textMed, marginBottom:12 }}>目安{taxRate}%（¥{fmt(taxGoal)}）· 積立済 ¥{fmt(taxSaved)}</div>
+              <div style={{ fontSize:12, color:C.textMed, marginBottom:12 }}>目安{taxRate}%（売上¥{fmt(displayIncome)} - 経費¥{fmt(bizSpent)} = 課税所得¥{fmt(taxableIncome)}）· 積立済 ¥{fmt(taxSaved)}</div>
               <button onClick={() => go('tax')} style={{ background:C.warning, color:'white', border:'none', borderRadius:10, padding:'9px 16px', fontSize:13, fontWeight:700, cursor:'pointer' }}>今すぐ積立 →</button>
             </div>
           )}
