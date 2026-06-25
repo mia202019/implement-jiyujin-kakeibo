@@ -635,11 +635,12 @@ function TxnEditModal({ txn, onSave, onDelete, onClose }) {
   const [date, setDate]     = useState(txn.date || TODAY);
   const [memo, setMemo]     = useState(txn.memo || '');
   const [div, setDiv]       = useState(txn.division || '生活費');
+  const [pay, setPay]       = useState(txn.payment || getCards()[0]?.name || '現金');
 
   const save = () => {
     const n = parseInt(amount);
     if (!n || n <= 0) return;
-    onSave({ ...txn, amount: n, date, memo, division: txn.type==='expense' ? div : txn.division });
+    onSave({ ...txn, amount: n, date, memo, division: txn.type==='expense' ? div : txn.division, payment: pay });
   };
 
   return (
@@ -675,10 +676,18 @@ function TxnEditModal({ txn, onSave, onDelete, onClose }) {
           </div>
         )}
 
-        <div style={{ marginBottom:20 }}>
+        <div style={{ marginBottom:14 }}>
           <div style={{ fontSize:11, fontWeight:600, color:C.textMuted, marginBottom:6 }}>メモ</div>
           <input value={memo} onChange={e=>setMemo(e.target.value)} placeholder="メモ..."
             style={{ width:'100%', fontSize:14, padding:'12px 16px', border:`1.5px solid ${C.border}`, borderRadius:12, outline:'none', background:C.bg, color:C.text }} />
+        </div>
+
+        <div style={{ marginBottom:20 }}>
+          <div style={{ fontSize:11, fontWeight:600, color:C.textMuted, marginBottom:6 }}>支払い</div>
+          <select value={pay} onChange={e=>setPay(e.target.value)}
+            style={{ width:'100%', fontSize:14, padding:'12px 16px', border:`1.5px solid ${C.border}`, borderRadius:12, outline:'none', background:C.bg, color:C.text, appearance:'none' }}>
+            {getCards().map(c => <option key={c.id} value={c.name}>{c.name}{c.last4?` (${c.last4})`:''}</option>)}
+          </select>
         </div>
 
         <div style={{ display:'flex', gap:8 }}>
