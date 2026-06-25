@@ -3015,11 +3015,17 @@ function rowToTxn(row, headers, fmt, autoClassOn, idx) {
   const hi = k => headers.findIndex(h => h.includes(k));
 
   if (fmt === 'bank-stmt') {
-    // 銀行通帳形式: 年,月,日,...,内容,支払金額,入金額,残高,...
-    date   = normalizeDate(`${row[0]}/${row[1]}/${row[2]}`);
-    desc   = row[7] || '';
-    const pay = normalizeAmount(row[8]);
-    const dep = normalizeAmount(row[9]);
+    // 銀行通帳形式: 年,月,日,...,内容,支払金額,入金額  or PayPayビジネス形式: ヘッダーで列を探す
+    const dateColIdx = hi('取引日') >= 0 ? hi('取引日') : hi('日付') >= 0 ? hi('日付') : hi('取引日時') >= 0 ? hi('取引日時') : -1;
+    date = dateColIdx >= 0
+      ? normalizeDate((row[dateColIdx] || '').slice(0, 10))
+      : normalizeDate(`${row[0]}/${row[1]}/${row[2]}`);
+    const descColIdx = hi('摘要') >= 0 ? hi('摘要') : hi('内容') >= 0 ? hi('内容') : hi('取引先') >= 0 ? hi('取引先') : -1;
+    desc = descColIdx >= 0 ? row[descColIdx] : row[7] || '';
+    const payColIdx = hi('支払金額') >= 0 ? hi('支払金額') : 8;
+    const depColIdx = hi('入金額') >= 0 ? hi('入金額') : 9;
+    const pay = normalizeAmount(row[payColIdx]);
+    const dep = normalizeAmount(row[depColIdx]);
     if (pay > 0) { amount = pay; }
     else if (dep > 0) { amount = dep; return { tempId:idx, date, memo:desc, category: autoClassOn ? guessCategory(desc) : 'その他', amount, type:'income', division:'事業収入', payment:'振込' }; }
     else return null;

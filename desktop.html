@@ -380,8 +380,13 @@ function csvRowToTxn(row, headers, fmt, autoClassOn, idx) {
   const hi = k => (headers||[]).findIndex(h=>h.includes(k));
   let date=TODAY, desc='', amount=0, payment='カード';
   if (fmt==='bank-stmt') {
-    date=normDate(`${row[0]}/${row[1]}/${row[2]}`); desc=row[7]||'';
-    const pay=normAmt(row[8]); const dep=normAmt(row[9]);
+    const dci=hi('取引日')>=0?hi('取引日'):hi('日付')>=0?hi('日付'):hi('取引日時')>=0?hi('取引日時'):-1;
+    date=dci>=0?normDate((row[dci]||'').slice(0,10)):normDate(`${row[0]}/${row[1]}/${row[2]}`);
+    const nci=hi('摘要')>=0?hi('摘要'):hi('内容')>=0?hi('内容'):hi('取引先')>=0?hi('取引先'):-1;
+    desc=nci>=0?row[nci]:row[7]||'';
+    const pci=hi('支払金額')>=0?hi('支払金額'):8;
+    const ici=hi('入金額')>=0?hi('入金額'):9;
+    const pay=normAmt(row[pci]); const dep=normAmt(row[ici]);
     if(pay>0){amount=pay;}
     else if(dep>0){return{tempId:idx,date,memo:desc,category:autoClassOn?guessCategory(desc):'その他',amount:dep,type:'income',division:'事業収入',payment:'振込'};}
     else return null;
