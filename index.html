@@ -3065,7 +3065,7 @@ function rowToTxn(row, headers, fmt, autoClassOn, idx) {
 
 function CsvImportScreen({ go }) {
   const [step, setStep]         = useState('upload');
-  const [fmt, setFmt]           = useState('auto');
+  const [csvFmt, setCsvFmt]     = useState('auto');
   const [autoClass, setAutoClass] = useState(true);
   const [preview, setPreview]   = useState([]);
   const [selected, setSelected] = useState(new Set());
@@ -3091,7 +3091,7 @@ function CsvImportScreen({ go }) {
         const rows = parseCSVText(text);
         if (rows.length < 1) return false;
         const { fmt: detected, headerIdx } = detectFormat(rows);
-        const useFmt = fmt === 'auto' ? detected : fmt;
+        const useFmt = csvFmt === 'auto' ? detected : csvFmt;
         const headers = headerIdx >= 0 ? rows[headerIdx] : [];
         let dataRows = headerIdx >= 0 ? rows.slice(headerIdx + 1) : rows;
         // For vpass-monthly: tag each date row with card name from section headers
@@ -3198,11 +3198,11 @@ function CsvImportScreen({ go }) {
           <Card style={{ marginBottom:14 }}>
             <div style={{ fontSize:11, fontWeight:700, color:C.textMuted, letterSpacing:'0.06em', marginBottom:10 }}>形式</div>
             {[['auto','自動検出（おすすめ）','🔍'],['vpass','Vpass（三井住友カード）','💳'],['paypay','PayPayビジネス','📱'],['bank-stmt','銀行通帳（PayPay銀行など）','🏦']].map(([v,l,em]) => (
-              <button key={v} type="button" onClick={() => setFmt(v)} style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:12, background:fmt===v ? C.primaryLight : C.bg, border:`1.5px solid ${fmt===v ? C.primary : 'transparent'}`, cursor:'pointer', textAlign:'left', marginBottom:6 }}>
+              <button key={v} type="button" onClick={() => setCsvFmt(v)} style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:12, background:csvFmt===v ? C.primaryLight : C.bg, border:`1.5px solid ${csvFmt===v ? C.primary : 'transparent'}`, cursor:'pointer', textAlign:'left', marginBottom:6 }}>
                 <span style={{ fontSize:18 }}>{em}</span>
-                <span style={{ fontSize:13, fontWeight:fmt===v?700:500, color:fmt===v?C.primary:C.text }}>{l}</span>
-                <div style={{ marginLeft:'auto', width:18, height:18, borderRadius:'50%', border:`2px solid ${fmt===v ? C.primary : C.border}`, background:fmt===v ? C.primary : 'white', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  {fmt===v && <div style={{ width:6, height:6, borderRadius:'50%', background:'white' }} />}
+                <span style={{ fontSize:13, fontWeight:csvFmt===v?700:500, color:csvFmt===v?C.primary:C.text }}>{l}</span>
+                <div style={{ marginLeft:'auto', width:18, height:18, borderRadius:'50%', border:`2px solid ${csvFmt===v ? C.primary : C.border}`, background:csvFmt===v ? C.primary : 'white', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  {csvFmt===v && <div style={{ width:6, height:6, borderRadius:'50%', background:'white' }} />}
                 </div>
               </button>
             ))}
