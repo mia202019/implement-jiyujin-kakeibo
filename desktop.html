@@ -2186,6 +2186,41 @@ function FixedExpensesScreen({ go }) {
   const [yearlyRegSet, setYearlyRegSet] = useState(() => new Set(
     Store.get('transactions',[]).filter(t=>t.source==='fixed'&&t.date&&t.date.startsWith(thisYear)).map(t=>t.fixedId)
   ));
+  const [showSubDetect, setShowSubDetect] = useState(false);
+  const [dismissedSubKeys, setDismissedSubKeys] = useState(() => new Set(Store.get('dismissedSubKeys', [])));
+  const [txnVersion, setTxnVersion] = useState(0);
+
+  const allTxns = Store.get('transactions', []);
+  const subGroups = {};
+  allTxns.filter(t => t.type === 'expense').forEach(t => {
+    const memo = (t.memo || '').trim();
+    if (!memo) return;
+    const key = `${t.amount}__${memo}`;
+    if (!subGroups[key]) subGroups[key] = { key, amount: t.amount, memo, months: new Set(), txnIds: [] };
+    const ym = (t.date || '').slice(0, 7);
+    if (ym) subGroups[key].months.add(ym);
+    subGroups[key].txnIds.push(t.id);
+  });
+  const detectedSubs = Object.values(subGroups)
+    .filter(g => g.months.size >= 2 && !dismissedSubKeys.has(g.key))
+    .filter(g => !allTxns.filter(t => g.txnIds.includes(t.id)).every(t => t.category === 'サブスク'))
+    .sort((a, b) => b.amount - a.amount);
+
+  const classifyAsSub = (group) => {
+    const txns = Store.get('transactions', []);
+    const updated = txns.map(t => group.txnIds.includes(t.id) ? { ...t, category: 'サブスク', division: '生活費' } : t);
+    Store.set('transactions', updated);
+    const next = new Set([...dismissedSubKeys, group.key]);
+    setDismissedSubKeys(next);
+    Store.set('dismissedSubKeys', [...next]);
+    setTxnVersion(v => v + 1);
+  };
+
+  const dismissSub = (key) => {
+    const next = new Set([...dismissedSubKeys, key]);
+    setDismissedSubKeys(next);
+    Store.set('dismissedSubKeys', [...next]);
+  };
 
   const save = () => {
     if (!form.name || !form.amount) return;
@@ -2239,6 +2274,38 @@ function FixedExpensesScreen({ go }) {
 
   return (
     <Shell active="settings" go={go} title="固定費の管理" subtitle="毎月かかる固定の支出を登録" maxWidth={1100}>
+
+      {/* サブスク自動検出バナー */}
+      {detectedSubs.length > 0 && (
+        <div style={{ background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 14, padding: 16, marginBottom: 20 }}>
+          <div onClick={() => setShowSubDetect(!showSubDetect)} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+            <span style={{ fontSize: 22 }}>🔍</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#1D4ED8' }}>{detectedSubs.length}件の繰り返し支出が見つかりました</div>
+              <div style={{ fontSize: 12, color: '#3B82F6' }}>同じ金額・メモが複数月で繰り返されています。サブスクとして分類できます</div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 14 14" fill="none" style={{ transform: showSubDetect ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }}>
+              <path d="M2 5l5 5 5-5" stroke="#1D4ED8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          {showSubDetect && (
+            <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>
+              {detectedSubs.map(g => (
+                <div key={g.key} style={{ background: 'white', borderRadius: 10, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 22, flexShrink: 0 }}>📺</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.memo}</div>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>¥{fmt(g.amount)} · {g.months.size}ヶ月分検出</div>
+                  </div>
+                  <button onClick={() => dismissSub(g.key)} style={{ fontSize: 11, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', flexShrink: 0 }}>無視</button>
+                  <button onClick={() => classifyAsSub(g)} style={{ fontSize: 12, fontWeight: 700, color: 'white', background: '#1D4ED8', border: 'none', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>サブスクに分類</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 20, alignItems: 'start' }}>
 
         {/* Left: summary + form */}
