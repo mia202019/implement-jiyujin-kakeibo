@@ -32,6 +32,20 @@
     .navbtn.active:hover { background: #097D60 !important; }
     .lift { transition: transform .15s ease, box-shadow .15s ease; }
     .lift:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,0.10); }
+    @media (max-width: 1050px) {
+      .sidebar { width: 70px !important; }
+      .sidebar-header { display: none !important; }
+      .sidebar-label { display: none !important; }
+      .sidebar-user-text { display: none !important; }
+      .sidebar-nav-btn { padding: 13px !important; justify-content: center !important; }
+      .sidebar-user-btn { padding: 10px !important; justify-content: center !important; }
+      .shell-main { margin-left: 70px !important; padding: 24px 20px 48px !important; }
+      .input-layout-grid { grid-template-columns: 1fr !important; }
+      .budget-layout-grid { grid-template-columns: 1fr !important; }
+    }
+    @media (max-width: 780px) {
+      .form-two-col { grid-template-columns: 1fr !important; }
+    }
   </style>
 </head>
 <body>
@@ -221,8 +235,8 @@ function Sidebar({ active, go }) {
   const isBiz = userType !== 'employee';
   const visibleNav = NAV.filter(item => isBiz || (item.key !== 'business' && item.key !== 'tax'));
   return (
-    <aside style={{ width: 248, background: 'white', borderRight: `1px solid ${C.bgCard}`, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, bottom: 0, left: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '24px 22px 22px' }}>
+    <aside className="sidebar" style={{ width: 248, background: 'white', borderRight: `1px solid ${C.bgCard}`, display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, bottom: 0, left: 0 }}>
+      <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '24px 22px 22px' }}>
         <Logo />
         <div>
           <div style={{ fontSize: 16, fontWeight: 700, color: C.text, letterSpacing: '-0.3px' }}>自由人家計簿</div>
@@ -230,17 +244,17 @@ function Sidebar({ active, go }) {
         </div>
       </div>
 
-      <nav style={{ flex: 1, padding: '6px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <nav style={{ flex: 1, padding: '6px 14px', display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto' }}>
         {visibleNav.map(({ key, label, icon }) => {
           const a = active === key;
           return (
-            <button key={key} className={`navbtn${a ? ' active' : ''}`} onClick={() => go(key)} style={{
+            <button key={key} className={`navbtn sidebar-nav-btn${a ? ' active' : ''}`} onClick={() => go(key)} style={{
               display: 'flex', alignItems: 'center', gap: 13, padding: '12px 14px', borderRadius: 13,
               background: a ? C.primary : 'transparent', textAlign: 'left',
               boxShadow: a ? '0 6px 18px rgba(9,125,96,0.28)' : 'none', transition: 'background .12s',
             }}>
               {icon(a)}
-              <span style={{ fontSize: 14, fontWeight: a ? 700 : 500, color: a ? 'white' : C.textMed }}>{label}</span>
+              <span className="sidebar-label" style={{ fontSize: 14, fontWeight: a ? 700 : 500, color: a ? 'white' : C.textMed }}>{label}</span>
             </button>
           );
         })}
@@ -250,11 +264,11 @@ function Sidebar({ active, go }) {
         {(() => {
           const u = JSON.parse(localStorage.getItem('gUser') || 'null');
           return (
-            <button onClick={() => go('settings')} className="navbtn" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 13, width: '100%', textAlign: 'left' }}>
+            <button onClick={() => go('settings')} className="navbtn sidebar-user-btn" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 13, width: '100%', textAlign: 'left' }}>
               {u?.picture
                 ? <img src={u.picture} alt="" style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0 }} />
                 : <div style={{ width: 38, height: 38, background: C.primaryLight, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>🙂</div>}
-              <div style={{ overflow: 'hidden' }}>
+              <div className="sidebar-user-text" style={{ overflow: 'hidden' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>{u?.name || 'ゲストユーザー'}</div>
                 <div style={{ fontSize: 11, color: C.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>{u?.email || '未ログイン'}</div>
               </div>
@@ -271,7 +285,7 @@ function Shell({ active, go, title, subtitle, actions, children, maxWidth = 1180
   return (
     <div style={{ minHeight: '100vh', background: C.bg }}>
       <Sidebar active={active} go={go} />
-      <main style={{ marginLeft: 248, padding: '34px 40px 56px' }}>
+      <main className="shell-main" style={{ marginLeft: 248, padding: '34px 40px 56px' }}>
         <div style={{ maxWidth, margin: '0 auto' }}>
           <header style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
             <div>
@@ -1291,7 +1305,7 @@ function ExpenseForm({ onSave }) {
         )}
       </Field>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
+      <div className="form-two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
         <Field label="区分">
           <Seg options={isBiz ? ['生活費','事業費','税金','投資'] : ['生活費','投資']} value={div} set={setDiv} />
           {div === '投資' && (
@@ -1492,7 +1506,7 @@ function InputScreen({ go }) {
 
   return (
     <Shell active="input" go={go} title="記録を追加" subtitle="支出・収入を入力します" maxWidth={1180}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 20, alignItems: 'start' }}>
+      <div className="input-layout-grid" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 20, alignItems: 'start' }}>
         <Card style={{ padding: 28 }}>
           <div style={{ display: 'flex', background: C.primaryLight, borderRadius: 14, padding: 4, gap: 3, marginBottom: 26 }}>
             <button onClick={() => setMode('expense')} style={{ flex: 1, background: mode === 'expense' ? C.primary : 'transparent', color: mode === 'expense' ? 'white' : C.textMed, borderRadius: 11, padding: '12px', fontSize: 14, fontWeight: 700, boxShadow: mode === 'expense' ? '0 3px 10px rgba(9,125,96,0.28)' : 'none' }}>💸　支出</button>
@@ -1582,7 +1596,7 @@ function BudgetScreen({ go }) {
 
   return (
     <Shell active="budget" go={go} title="予算管理" subtitle={`今月の収入 ¥${fmt(income)}`} actions={<MonthPill />}>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1.6fr', gap:20, alignItems:'start' }}>
+      <div className="budget-layout-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1.6fr', gap:20, alignItems:'start' }}>
         {/* Left: Income + stacked bar + presets */}
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           <Card>
