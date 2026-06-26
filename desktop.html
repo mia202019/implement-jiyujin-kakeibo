@@ -1853,7 +1853,7 @@ function ReportScreen({ go }) {
 
   const summary = [
     { label:'収入',   value:`¥${fmt(thisInc)}`, color: C.primary, sub:'今月確定' },
-    { label:'支出',   value:`¥${fmt(thisExp)}`, color: '#F472B6', sub:'今月合計' },
+    { label:'支出',   value:`¥${fmt(thisExp)}`, color: C.warning, sub:'今月合計' },
     { label:'貯蓄率', value:`${savingsRate}%`,  color: C.invest,  sub:'税引き前' },
   ];
 
@@ -1879,7 +1879,7 @@ function ReportScreen({ go }) {
           <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>6ヶ月の収支推移</div>
           <div style={{ display: 'flex', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 11, height: 11, borderRadius: 3, background: C.primary }} /><span style={{ fontSize: 12, color: C.textMuted }}>収入</span></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 11, height: 11, borderRadius: 3, background: '#F472B6' }} /><span style={{ fontSize: 12, color: C.textMuted }}>支出</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 11, height: 11, borderRadius: 3, background: C.warning }} /><span style={{ fontSize: 12, color: C.textMuted }}>支出</span></div>
           </div>
         </div>
         <svg viewBox="0 0 348 150" style={{ width: '100%', maxHeight: 260, overflow: 'visible' }}>
@@ -1890,7 +1890,7 @@ function ReportScreen({ go }) {
             return (
               <g key={d.label}>
                 <rect x={i*58+6}  y={110-ih} width="20" height={ih} rx="4" fill={C.primary} opacity={d.isCurrent ? 1 : 0.7}/>
-                <rect x={i*58+29} y={110-eh} width="20" height={eh} rx="4" fill={'#F472B6'} opacity={d.isCurrent ? 1 : 0.7}/>
+                <rect x={i*58+29} y={110-eh} width="20" height={eh} rx="4" fill={C.warning} opacity={d.isCurrent ? 1 : 0.7}/>
                 <text x={i*58+24} y="128" textAnchor="middle" fontSize="10" fill={d.isCurrent ? C.text : C.textFaint} fontWeight={d.isCurrent ? '700' : '400'} fontFamily="sans-serif">{d.label}</text>
               </g>
             );
@@ -1969,7 +1969,7 @@ function ReportScreen({ go }) {
           <div style={{ display: 'flex', gap: 14 }}>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600 }}>毎月</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#F472B6', fontFeatureSettings: tnum }}>¥{fmt(fixedMonthly)}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.warning, fontFeatureSettings: tnum }}>¥{fmt(fixedMonthly)}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600 }}>年間一括</div>
