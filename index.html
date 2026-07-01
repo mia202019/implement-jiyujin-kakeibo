@@ -238,12 +238,12 @@ function BottomNav({ active, go }) {
       icon: a => <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="4" width="18" height="14" rx="3" fill={a ? C.primary : 'none'} stroke={a ? 'none' : C.textFaint} strokeWidth="1.5"/><path d="M7 9H15M7 13H11" stroke={a ? 'white' : C.textFaint} strokeWidth="1.5" strokeLinecap="round"/></svg> },
     { key: 'biz',      label: '事業', bizOnly: true,
       icon: a => <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="7" y="6" width="8" height="5" rx="1.5" stroke={a?C.primary:C.textFaint} strokeWidth="1.5" fill="none"/><rect x="2" y="10" width="18" height="10" rx="2.5" fill={a?C.primary:'none'} stroke={a?'none':C.textFaint} strokeWidth="1.5"/><path d="M11 14V16" stroke={a?'white':C.textFaint} strokeWidth="1.5" strokeLinecap="round"/></svg> },
-    { key: 'report',   label: '分析', empOnly: true,
+    { key: 'report',   label: '分析',
       icon: a => <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="2" width="18" height="18" rx="3" fill={a?C.primary:'none'} stroke={a?'none':C.textFaint} strokeWidth="1.5"/><rect x="6" y="12" width="3" height="6" rx="1" fill={a?'white':C.textFaint}/><rect x="10" y="8" width="3" height="10" rx="1" fill={a?'white':C.textFaint}/><rect x="14" y="5" width="3" height="13" rx="1" fill={a?'rgba(255,255,255,0.6)':C.bgCard}/></svg> },
     { key: 'settings', label: '設定',
       icon: a => <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="3" stroke={a ? C.primary : C.textFaint} strokeWidth="1.5"/><path d="M11 2V4M11 18V20M2 11H4M18 11H20M4.22 4.22L5.64 5.64M16.36 16.36L17.78 17.78M4.22 17.78L5.64 16.36M16.36 5.64L17.78 4.22" stroke={a ? C.primary : C.textFaint} strokeWidth="1.5" strokeLinecap="round"/></svg> },
   ];
-  const items = allItems.filter(i => (!i.bizOnly || isBiz) && (!i.empOnly || !isBiz));
+  const items = allItems.filter(i => !i.bizOnly || isBiz);
   return (
     <div style={{ background: 'rgba(255,255,255,0.97)', borderTop: `1px solid ${C.bgCard}`, display: 'flex', flexShrink: 0, paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
       {items.map(({ key, label, icon }) => {
