@@ -260,7 +260,7 @@ function BottomNav({ active, go }) {
 // ── Screen wrapper (adds safe status bar space) ────────────────────────────
 function Screen({ children, bg = C.bg }) {
   return (
-    <div style={{ height: '100vh', background: bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ height: '100dvh', background: bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {children}
     </div>
   );
@@ -1261,6 +1261,7 @@ function ExpenseInput({ onBack, onDone, go }) {
             </button>
           </div>
 
+          {isBiz && (<>
           <div style={{ fontSize: 10, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>仕事・クリエイター</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
             {EXPENSE_CATS.filter(c => c.group === 'biz').map(c => {
@@ -1279,6 +1280,7 @@ function ExpenseInput({ onBack, onDone, go }) {
               <span style={{ fontSize:9, color:C.textMed, lineHeight:1.2, textAlign:'center' }}>その他</span>
             </button>
           </div>
+          </>)}
 
           {cat === 'その他' && (
             <div style={{ marginTop: 12 }}>
@@ -3790,7 +3792,6 @@ function App() {
       setUser(u);
       setScreen(Store.get('settings', {}).onboardingDone ? 'home' : 'usertype');
       setLoading(false);
-      setTimeout(autoBackupCheck, 2000);
       // 既存のサブスク取引を固定費一覧に同期
       Store.get('transactions', []).filter(t => t.category === 'サブスク').forEach(t => syncSubToFixed(t.memo, t.amount));
     };

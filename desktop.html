@@ -1287,6 +1287,7 @@ function ExpenseForm({ onSave }) {
             <span style={{ fontSize: 9.5, color: C.textMed, whiteSpace: 'nowrap' }}>その他</span>
           </button>
         </div>
+        {isBiz && (<>
         <div style={{ fontSize: 10, fontWeight: 600, color: C.textFaint, letterSpacing: '0.06em', marginBottom: 8 }}>仕事・クリエイター ──────</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 8 }}>
           {EXPENSE_CATS.filter(c => c.group === 'biz').map(c => {
@@ -1305,6 +1306,7 @@ function ExpenseForm({ onSave }) {
             <span style={{ fontSize: 9.5, color: C.textMed, whiteSpace: 'nowrap' }}>その他</span>
           </button>
         </div>
+        </>)}
         {cat === 'その他' && (
           <input value={catOther} onChange={e => setCatOther(e.target.value)} placeholder="カテゴリを入力..." style={{ marginTop: 12, background: C.bg, border: `1.5px solid ${C.primary}`, borderRadius: 10, padding: '10px 14px', fontSize: 14, color: C.text, outline: 'none', width: '100%' }} autoFocus />
         )}
