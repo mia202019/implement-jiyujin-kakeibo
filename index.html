@@ -1199,11 +1199,11 @@ function ExpenseInput({ onBack, onDone, go }) {
   return (
     <Screen>
       <div style={{ flex: 1, overflowY: 'auto', padding: '56px 20px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>支出を追加</div>
-          <button onClick={onBack} style={{ width: 32, height: 32, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2L12 12M12 2L2 12" stroke={C.textMed} strokeWidth="1.8" strokeLinecap="round"/></svg>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+          <button onClick={onBack} style={{ width: 36, height: 36, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.10)', flexShrink: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8L10 13" stroke={C.textMed} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>支出を追加</div>
         </div>
 
         {/* Amount */}
@@ -1358,11 +1358,11 @@ function IncomeInput({ onBack, onDone, go }) {
   return (
     <Screen>
       <div style={{ flex: 1, overflowY: 'auto', padding: '56px 20px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>収入を追加</div>
-          <button onClick={onBack} style={{ width: 32, height: 32, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2L12 12M12 2L2 12" stroke={C.textMed} strokeWidth="1.8" strokeLinecap="round"/></svg>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+          <button onClick={onBack} style={{ width: 36, height: 36, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.10)', flexShrink: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8L10 13" stroke={C.textMed} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>収入を追加</div>
         </div>
 
         {/* Amount */}
