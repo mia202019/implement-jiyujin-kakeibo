@@ -1,0 +1,19 @@
+{
+  "name": "自由人家計簿",
+  "short_name": "家計簿",
+  "description": "フリーランス・会社員のための家計管理アプリ",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#097D60",
+  "background_color": "#EFF8F5",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
