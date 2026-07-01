@@ -238,10 +238,12 @@ function BottomNav({ active, go }) {
       icon: a => <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="4" width="18" height="14" rx="3" fill={a ? C.primary : 'none'} stroke={a ? 'none' : C.textFaint} strokeWidth="1.5"/><path d="M7 9H15M7 13H11" stroke={a ? 'white' : C.textFaint} strokeWidth="1.5" strokeLinecap="round"/></svg> },
     { key: 'biz',      label: '事業', bizOnly: true,
       icon: a => <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="7" y="6" width="8" height="5" rx="1.5" stroke={a?C.primary:C.textFaint} strokeWidth="1.5" fill="none"/><rect x="2" y="10" width="18" height="10" rx="2.5" fill={a?C.primary:'none'} stroke={a?'none':C.textFaint} strokeWidth="1.5"/><path d="M11 14V16" stroke={a?'white':C.textFaint} strokeWidth="1.5" strokeLinecap="round"/></svg> },
+    { key: 'report',   label: '分析', empOnly: true,
+      icon: a => <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="2" width="18" height="18" rx="3" fill={a?C.primary:'none'} stroke={a?'none':C.textFaint} strokeWidth="1.5"/><rect x="6" y="12" width="3" height="6" rx="1" fill={a?'white':C.textFaint}/><rect x="10" y="8" width="3" height="10" rx="1" fill={a?'white':C.textFaint}/><rect x="14" y="5" width="3" height="13" rx="1" fill={a?'rgba(255,255,255,0.6)':C.bgCard}/></svg> },
     { key: 'settings', label: '設定',
       icon: a => <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="3" stroke={a ? C.primary : C.textFaint} strokeWidth="1.5"/><path d="M11 2V4M11 18V20M2 11H4M18 11H20M4.22 4.22L5.64 5.64M16.36 16.36L17.78 17.78M4.22 17.78L5.64 16.36M16.36 5.64L17.78 4.22" stroke={a ? C.primary : C.textFaint} strokeWidth="1.5" strokeLinecap="round"/></svg> },
   ];
-  const items = allItems.filter(i => !i.bizOnly || isBiz);
+  const items = allItems.filter(i => (!i.bizOnly || isBiz) && (!i.empOnly || !isBiz));
   return (
     <div style={{ background: 'rgba(255,255,255,0.97)', borderTop: `1px solid ${C.bgCard}`, display: 'flex', flexShrink: 0, paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
       {items.map(({ key, label, icon }) => {
@@ -1845,13 +1847,17 @@ function BudgetScreen({ go }) {
 // ── 11 Monthly Report ──────────────────────────────────────────────────────
 function ReportScreen({ go }) {
   const allTxns = Store.get('transactions', []);
+  const settings = Store.get('settings', {});
+  const isBiz = (settings.userType || 'freelance') !== 'employee';
+  const salary = settings.salary || 0;
   const today = new Date();
   const currYm = TODAY.slice(0,7);
   const currT = allTxns.filter(t=>t.date&&t.date.startsWith(currYm));
   const thisInc = currT.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
   const thisExp = currT.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
   const thisBalance = thisInc - thisExp;
-  const savingsRate = thisInc > 0 ? ((thisInc-thisExp)/thisInc*100).toFixed(1) : '0.0';
+  const baseInc = !isBiz && salary > 0 ? salary : thisInc;
+  const savingsRate = baseInc > 0 ? ((baseInc-thisExp)/baseInc*100).toFixed(1) : '0.0';
 
   // 6-month trend
   const months = Array.from({length:6}, (_, i) => {
@@ -1911,14 +1917,27 @@ function ReportScreen({ go }) {
               </div>
             ))}
           </div>
-          <div style={{ display:'flex', gap:8 }}>
-            {[['生活費', lifeExp, C.warning], ['事業費', bizExp, C.primary]].map(([l,v,c]) => (
-              <div key={l} style={{ flex:1, display:'flex', justifyContent:'space-between', alignItems:'center', background:c+'12', borderRadius:10, padding:'10px 14px' }}>
-                <span style={{ fontSize:12, fontWeight:600, color:c }}>{l}</span>
-                <span style={{ fontSize:13, fontWeight:700, color:c, fontFeatureSettings:"'tnum'" }}>¥{fmt(v)}</span>
+          {isBiz ? (
+            <div style={{ display:'flex', gap:8 }}>
+              {[['生活費', lifeExp, C.warning], ['事業費', bizExp, C.primary]].map(([l,v,c]) => (
+                <div key={l} style={{ flex:1, display:'flex', justifyContent:'space-between', alignItems:'center', background:c+'12', borderRadius:10, padding:'10px 14px' }}>
+                  <span style={{ fontSize:12, fontWeight:600, color:c }}>{l}</span>
+                  <span style={{ fontSize:13, fontWeight:700, color:c, fontFeatureSettings:"'tnum'" }}>¥{fmt(v)}</span>
+                </div>
+              ))}
+            </div>
+          ) : salary > 0 && (
+            <div style={{ display:'flex', gap:8 }}>
+              <div style={{ flex:1, display:'flex', justifyContent:'space-between', alignItems:'center', background:C.primary+'12', borderRadius:10, padding:'10px 14px' }}>
+                <span style={{ fontSize:12, fontWeight:600, color:C.primary }}>手取り月収</span>
+                <span style={{ fontSize:13, fontWeight:700, color:C.primary, fontFeatureSettings:"'tnum'" }}>¥{fmt(salary)}</span>
               </div>
-            ))}
-          </div>
+              <div style={{ flex:1, display:'flex', justifyContent:'space-between', alignItems:'center', background:C.warning+'12', borderRadius:10, padding:'10px 14px' }}>
+                <span style={{ fontSize:12, fontWeight:600, color:C.warning }}>残り</span>
+                <span style={{ fontSize:13, fontWeight:700, color:salary-thisExp>=0?C.primary:C.warning, fontFeatureSettings:"'tnum'" }}>¥{fmt(salary-thisExp)}</span>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* ② 6ヶ月の収支推移 */}
@@ -1994,9 +2013,9 @@ function ReportScreen({ go }) {
               </div>
             );
           })()}
-          {thisInc > 0 && (
+          {(thisInc > 0 || (!isBiz && salary > 0)) && (
             <div style={{ marginTop:16, paddingTop:14, borderTop:`1px solid ${C.bgCard}`, display:'flex', justifyContent:'space-between', fontSize:12 }}>
-              <span style={{ color:C.textMuted }}>貯蓄率（税引き前）</span>
+              <span style={{ color:C.textMuted }}>{isBiz ? '貯蓄率（税引き前）' : '貯蓄率（手取りベース）'}</span>
               <span style={{ fontWeight:700, color:parseFloat(savingsRate)>=20?C.primary:C.warning }}>{savingsRate}%</span>
             </div>
           )}
